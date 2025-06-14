@@ -9,7 +9,8 @@ import requests
 class TaxReporter:
     def __init__(self):
         self.tax_rates_file = "config/tax_rates.csv"
-        self.scrape_url = "https://www.oecd.org/tax/tax-policy/tax-database.csv"  # Example; adjust as needed
+        self.scrape_url = "https://gist.github.com/your-username/tax_rates.csv"  # Replace with your Gist URL
+        self.fallback_url = "https://www.oecd.org/tax/tax-policy/tax-database.htm"  # Manual CSV or scrape
         self.load_tax_rates()
 
     def load_tax_rates(self):
@@ -30,9 +31,26 @@ class TaxReporter:
 
     def update_tax_rates(self):
         try:
+            # Try primary Gist URL
             response = requests.get(self.scrape_url, timeout=10)
             response.raise_for_status()
             rates_data = {row["country"]: float(row["rate"]) for row in csv.DictReader(response.text.splitlines()) if "country" in row and "rate" in row}
+            
+            # Fallback to OECD if Gist fails
+            if not rates_data:
+                response = requests.get(self.fallback_url, timeout=10)
+                response.raise_for_status()
+                # Parse HTML table (simplified; needs BeautifulSoup for real use)
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                table = soup.find("table")  # Adjust selector based on actual page
+                rates_data = {}
+                for row in table.find_all("tr")[1:]:  # Skip header
+                    cols = row.find_all("td")
+                    if len(cols) >= 2:
+                        country = cols[0].text.strip()
+                        rate = float(cols[1].text.strip().replace("%", "")) / 100
+                        rates_data[country] = rate
             with open(self.tax_rates_file, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["country", "rate"])
@@ -40,7 +58,7 @@ class TaxReporter:
                     writer.writerow([country, rate])
                     db.execute_query("INSERT OR REPLACE INTO tax_rates (country, rate) VALUES (?, ?)", (country, rate))
             self.load_tax_rates()
-            logger.info("Tax rates scraped and jacked into the Net")
+            logger.info("Tax rates scraped and jacked into the Net from Gist/OECD")
         except Exception as e:
             logger.error(f"Tax rates scrape flatlined: {e}, using existing rates")
 
