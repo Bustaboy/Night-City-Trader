@@ -8,7 +8,7 @@ Japan,0.20
 Canada,0.50  # 50% for capital gains (varies by province)
 Australia,0.45  # 45% top marginal rate
 Italy,0.26  # 26% capital gains
-Spain,0.19  # 19% for first 6,000 EUR
+Spain,0.19  # 19% for first 6000 EUR
 Netherlands,0.30  # 30% box 3 tax
 Switzerland,0.00  # No federal crypto tax
 Brazil,0.15  # 15% on profits
