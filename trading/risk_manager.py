@@ -46,19 +46,16 @@ class RiskManager:
             if leverage > self.max_leverage:
                 logger.warning(f"Trade rejected: Leverage {leverage} exceeds {self.max_leverage}")
                 return False
-            total_position = db.fetch_one(
-                "SELECT SUM(amount) FROM positions WHERE symbol = ?", (symbol,)
-            )[0] or 0
-            portfolio_value = 100  # Placeholder
+            portfolio_value = db.get_portfolio_value()
             if amount * leverage > self.max_position_size * portfolio_value:
-                logger.warning(f"Trade rejected: Position size exceeds {self.max_position_size}")
+                logger.warning(f"Trade rejected: Position size exceeds {self.max_position_size * portfolio_value}")
                 return False
             trades_today = db.fetch_all(
                 "SELECT amount, price FROM trades WHERE timestamp >= date('now', 'start of day')"
             )
             daily_pnl = sum(t[0] * t[1] * (-1 if side == "sell" else 1) for t in trades_today)
             if daily_pnl < -self.max_daily_loss * portfolio_value:
-                logger.warning(f"Trade rejected: Daily loss exceeds {self.max_daily_loss}")
+                logger.warning(f"Trade rejected: Daily loss exceeds {self.max_daily_loss * portfolio_value}")
                 return False
             return True
         except Exception as e:
@@ -67,6 +64,7 @@ class RiskManager:
 
     def adjust_position_size(self, symbol, amount):
         try:
+            portfolio_value = db.get_portfolio_value()
             data = db.fetch_all(
                 "SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 20",
                 (symbol,)
@@ -75,9 +73,9 @@ class RiskManager:
             volatility = np.std(returns)
             kelly_fraction = (np.mean(returns) / volatility**2) if volatility > 0 else 0.1
             kelly_fraction = min(max(kelly_fraction, 0.01), 0.5)
-            portfolio_value = 100
-            adjusted = kelly_fraction * portfolio_value * self.max_position_size
-            logger.info(f"Adjusted size for {symbol}: {adjusted} Eddies")
+            max_size = self.max_position_size * portfolio_value
+            adjusted = kelly_fraction * max_size
+            logger.info(f"Adjusted size for {symbol}: {adjusted} Eddies based on {portfolio_value} portfolio")
             return min(amount, adjusted)
         except Exception as e:
             logger.error(f"Position sizing flatlined: {e}")
@@ -86,13 +84,14 @@ class RiskManager:
     def adjust_leverage(self, symbol, prediction_confidence, market_regime):
         try:
             base_leverage = self.max_leverage
-            if market_regime == "bear":
+            portfolio_value = db.get_portfolio_value()
+            if market_regime == "bear" or portfolio_value < 1000:
                 leverage = min(1.0, base_leverage)
-            elif prediction_confidence > 0.8:
+            elif prediction_confidence > 0.8 and portfolio_value > 5000:
                 leverage = min(base_leverage, 3.0)
             else:
                 leverage = min(base_leverage, 1.5)
-            logger.info(f"Adjusted leverage for {symbol}: {leverage}x")
+            logger.info(f"Adjusted leverage for {symbol}: {leverage}x based on {portfolio_value} Eddies")
             return leverage
         except Exception as e:
             logger.error(f"Leverage adjustment flatlined: {e}")
