@@ -71,6 +71,14 @@ class DatabaseManager:
                 PRIMARY KEY (symbol, period)
             )
         """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS reserves (
+                trade_id TEXT,
+                amount REAL,
+                timestamp TEXT,
+                PRIMARY KEY (trade_id)
+            )
+        """)
 
     def execute_query(self, query, params=()):
         self.cursor.execute(query, params)
