@@ -85,6 +85,13 @@ class DatabaseManager:
                 rate REAL
             )
         """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS portfolio (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                value REAL,
+                timestamp TEXT
+            )
+        """)
 
     def execute_query(self, query, params=()):
         self.cursor.execute(query, params)
@@ -118,6 +125,24 @@ class DatabaseManager:
             """,
             (symbol, period, mean_return, volatility)
         )
+
+    def update_portfolio_value(self, value):
+        try:
+            db.execute_query(
+                "INSERT INTO portfolio (value, timestamp) VALUES (?, ?)",
+                (value, datetime.now().isoformat())
+            )
+            logger.info(f"Portfolio value updated: {value} Eddies")
+        except Exception as e:
+            logger.error(f"Portfolio update flatlined: {e}")
+
+    def get_portfolio_value(self):
+        try:
+            value = db.fetch_one("SELECT value FROM portfolio ORDER BY timestamp DESC LIMIT 1")[0] or 100
+            return value
+        except Exception as e:
+            logger.error(f"Portfolio fetch flatlined: {e}")
+            return 100
 
     def close(self):
         self.conn.close()
