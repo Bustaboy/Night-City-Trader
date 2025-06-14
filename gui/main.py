@@ -32,9 +32,21 @@ class TradingApp:
         self.auto_tax_update = tk.BooleanVar(value=True)
         self.auto_rebalance = tk.BooleanVar(value=True)
         self.auto_idle_conversion = tk.BooleanVar(value=True)
+        self.auto_model_train = tk.BooleanVar(value=True)
+        self.auto_data_preload = tk.BooleanVar(value=True)
+        self.auto_arbitrage_scan = tk.BooleanVar(value=True)
+        self.auto_sentiment_update = tk.BooleanVar(value=True)
+        self.auto_onchain_update = tk.BooleanVar(value=True)
+        self.auto_profit_withdraw = tk.BooleanVar(value=True)
         self.last_tax_update = 0
         self.last_rebalance = 0
         self.last_idle_check = 0
+        self.last_train = 0
+        self.last_data_preload = 0
+        self.last_arbitrage_scan = 0
+        self.last_sentiment_update = 0
+        self.last_onchain_update = 0
+        self.last_profit_withdraw = 0
 
         # Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
@@ -92,13 +104,19 @@ class TradingApp:
         self.idle_target.set("USDT")
         self.idle_target.pack()
         tk.Button(self.dashboard_frame, text="Convert Idle Funds Now", command=self.convert_idle_now, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Run Arbitrage Scan", command=self.scan_arbitrage, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Check Market Regime", command=self.check_regime, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="View Sentiment", command=self.view_sentiment, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="View On-Chain Metrics", command=self.view_onchain, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Run Backtest", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Model Retrain (Weekly)", variable=self.auto_model_train, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Train Neural-Net Now", command=self.train_model, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Data Preload (Daily)", variable=self.auto_data_preload, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Preload Data Now", command=self.preload_data_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Arbitrage Scan (Hourly)", variable=self.auto_arbitrage_scan, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Scan Arbitrage Now", command=self.scan_arbitrage, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Sentiment Update (Daily)", variable=self.auto_sentiment_update, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Refresh Sentiment Now", command=self.view_sentiment, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto On-Chain Update (Daily)", variable=self.auto_onchain_update, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Refresh On-Chain Now", command=self.view_onchain, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Profit Withdraw (Monthly)", variable=self.auto_profit_withdraw, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Withdraw Profits Now", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Withdraw Reserves", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
         self.dashboard_text.pack()
@@ -111,7 +129,6 @@ class TradingApp:
         self.status_label = tk.Label(self.trading_frame, text="Status: Idle in the Net", style="Cyber.TLabel")
         self.status_label.pack()
 
-        self.idle_conversion_var = tk.BooleanVar(value=False)
         self.update_pair_list()
         self.update_status()
         self.schedule_automation()
@@ -127,6 +144,24 @@ class TradingApp:
         if self.auto_idle_conversion.get() and current_time - self.last_idle_check > 24 * 3600:  # Daily
             asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
             self.last_idle_check = current_time
+        if self.auto_model_train.get() and current_time - self.last_train > 7 * 24 * 3600:  # Weekly
+            self.train_model()
+            self.last_train = current_time
+        if self.auto_data_preload.get() and current_time - self.last_data_preload > 24 * 3600:  # Daily
+            self.preload_data_now()
+            self.last_data_preload = current_time
+        if self.auto_arbitrage_scan.get() and current_time - self.last_arbitrage_scan > 3600:  # Hourly
+            self.scan_arbitrage()
+            self.last_arbitrage_scan = current_time
+        if self.auto_sentiment_update.get() and current_time - self.last_sentiment_update > 24 * 3600:  # Daily
+            self.view_sentiment()
+            self.last_sentiment_update = current_time
+        if self.auto_onchain_update.get() and current_time - self.last_onchain_update > 24 * 3600:  # Daily
+            self.view_onchain()
+            self.last_onchain_update = current_time
+        if self.auto_profit_withdraw.get() and current_time - self.last_profit_withdraw > 30 * 24 * 3600:  # Monthly
+            self.withdraw_reserves()
+            self.last_profit_withdraw = current_time
         self.root.after(3600000, self.schedule_automation)  # Check hourly
 
     def update_pair_list(self):
@@ -326,6 +361,14 @@ class TradingApp:
             messagebox.showinfo("Success", "Portfolio rebalanced - Eddies optimized!")
         except Exception as e:
             messagebox.showerror("Error", f"Rebalance flatlined: {e}")
+
+    def preload_data_now(self):
+        try:
+            response = requests.post(f"{self.api_url}/preload_data")
+            response.raise_for_status()
+            messagebox.showinfo("Success", "Data preloaded - Net’s fresh!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Data preload flatlined: {e}")
 
     def emergency_stop(self):
         try:
