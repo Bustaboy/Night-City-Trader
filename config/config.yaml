@@ -1,0 +1,19 @@
+# config/config.yaml
+trading:
+  exchange: binance
+  symbol: BTC/USDT
+  timeframe: 1h
+  amount: 0.001  # Small amount for testing
+  testnet: true  # Toggle for live trading
+
+ml:
+  model_path: ml/model.pkl
+  features:
+    - sma_20
+    - sma_50
+    - rsi_14
+  train_interval: 86400  # Retrain every 24 hours
+  batch_size: 1000
+
+database:
+  url: sqlite:///local_trading.db
