@@ -15,15 +15,32 @@ class DataFetcher:
         if settings.TESTNET:
             self.exchange.set_sandbox_mode(True)
 
-    async def fetch_ohlcv(self, symbol, timeframe, limit=100):
+    async def fetch_ohlcv(self, symbol, timeframe, limit=100, since=None):
         try:
             await self.exchange.load_markets()
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-            logger.info(f"Fetched {limit} OHLCV records for {symbol}")
+            ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=limit)
+            logger.info(f"Fetched {len(ohlcv)} OHLCV records for {symbol}")
             return ohlcv
         except Exception as e:
             logger.error(f"Error fetching data: {e}")
             return self.simulate_ohlcv(limit)
+
+    async def fetch_historical_data(self, symbol, timeframe, years=20):
+        try:
+            await self.exchange.load_markets()
+            since = int(pd.Timestamp.now() - pd.Timedelta(days=365*years)).timestamp() * 1000
+            all_data = []
+            while since < int(pd.Timestamp.now().timestamp() * 1000):
+                data = await self.exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=1000)
+                if not data:
+                    break
+                all_data.extend(data)
+                since = data[-1][0] + 1
+            logger.info(f"Fetched {len(all_data)} historical OHLCV records for {symbol}")
+            return all_data
+        except Exception as e:
+            logger.error(f"Error fetching historical data: {e}")
+            return self.simulate_ohlcv(1000)
 
     def simulate_ohlcv(self, limit):
         timestamps = pd.date_range(end=pd.Timestamp.now(), periods=limit, freq="1h").astype(int) // 10**6
