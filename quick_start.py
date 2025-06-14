@@ -139,7 +139,7 @@ X_ACCESS_TOKEN_SECRET=
             print_status("Edit .env and add your Binance API keys!", "warning")
     else:
         print_status(".env file already exists", "success")
-
+    return True
 def install_dependencies():
     """Install Python dependencies"""
     print_status("Installing dependencies...")

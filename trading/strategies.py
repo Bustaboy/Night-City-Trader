@@ -1,10 +1,10 @@
-# trading/strategies.py
+﻿# trading/strategies.py
 """
 Arasaka Trading Strategies - Multiple strategies for different market conditions
 """
 import pandas as pd
 import numpy as np
-import talib
+import talib_cyberpunk as talib
 
 from config.settings import settings
 from utils.logger import logger
