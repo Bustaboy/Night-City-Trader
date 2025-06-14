@@ -13,6 +13,16 @@ def init_database():
         )
     """)
     db.execute_query("""
+        CREATE TABLE IF NOT EXISTS positions (
+            id TEXT PRIMARY KEY,
+            symbol TEXT,
+            side TEXT,
+            amount REAL,
+            entry_price REAL,
+            timestamp TEXT
+        )
+    """)
+    db.execute_query("""
         CREATE TABLE IF NOT EXISTS market_data (
             symbol TEXT,
             timestamp INTEGER,
