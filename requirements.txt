@@ -5,7 +5,7 @@ python-dotenv==1.0.1
 pyyaml==6.0.2
 
 # Exchange Connectivity
-ccxt==4.3.1
+ccxt==4.3.24
 
 # Data Processing
 pandas==2.2.2
@@ -23,16 +23,12 @@ tensorflow==2.17.0
 # Technical Analysis
 TA-Lib==0.4.32  # Requires system-level TA-Lib installation
 
-# Database
-# sqlite3 is included in Python standard library
-
 # GUI
-tkinter  # Usually included with Python
 matplotlib==3.9.2
 
 # Web Scraping (for sentiment/tax rates)
 requests==2.32.3
-beautifulsoup4==4.12.2
+beautifulsoup4==4.12.3
 
 # Twitter/X API
 tweepy==4.14.0
@@ -41,17 +37,15 @@ tweepy==4.14.0
 web3==6.20.3
 
 # Security
-cryptography==42.0.7
+cryptography==42.0.8
 
-# Logging
-# logging is included in Python standard library
+# Async Support
+aiohttp==3.10.5
 
 # Testing
 pytest==8.3.2
 pytest-asyncio==0.24.0
 
-# Packaging (optional, for creating executables)
-pyinstaller==6.10.0
-
-# Additional ML Tools (optional)
-sklearn-genetic-opt==0.5.1  # For genetic algorithm optimization
+# Additional Dependencies
+python-multipart==0.0.9  # For FastAPI file uploads
+scikit-learn==1.5.1  # For portfolio optimization

@@ -1,0 +1,156 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# Environment Variables - CRITICAL: Never commit these!
+.env
+.env.local
+.env.*.local
+
+# Database Files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+local_trading.db
+
+# Logs
+logs/
+*.log
+trading.log
+
+# ML Models - These can be large and should be generated locally
+*.pkl
+*.h5
+*.joblib
+*.model
+ml/model.pkl
+ml/rl_model.h5
+ml/*_scaler.pkl
+
+# Security Files - NEVER commit these!
+config/security.key
+config/defi_config.json
+config/encrypted_*
+*.key
+*.pem
+
+# Backups
+backups/
+backup_*.db
+*.backup
+
+# Trading Data
+data/historical/*.csv
+data/historical/*.txt
+*.csv.gz
+
+# Emergency Files
+EMERGENCY_STOP_ACTIVE
+SYSTEM_LOCKED
+emergency_report_*.txt
+
+# Tax Reports
+tax_report_*.csv
+tax_report_*.pdf
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.cover
+.coverage.*
+
+# Documentation Build
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+.cache/
+tmp/
+temp/
+
+# Node (if using any JS tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# API Keys and Credentials - CRITICAL
+*_api_key*
+*_secret*
+credentials.json
+auth.json
+
+# Custom Ignores for Trading Bot
+simulated_data/
+test_trades/
+paper_trading_results/
+*.test.db
