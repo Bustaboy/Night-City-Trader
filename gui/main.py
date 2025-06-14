@@ -3,12 +3,14 @@ import tkinter as tk
 from tkinter import messagebox
 import requests
 from config.settings import settings
+from emergency.kill_switch import KillSwitch
 
 class TradingApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Local Trading Bot")
+        self.root.title("Neural-Net Trading Bot")
         self.api_url = f"http://{settings.API_HOST}:{settings.API_PORT}"
+        self.kill_switch = KillSwitch()
 
         # GUI Elements
         tk.Label(root, text="Symbol (e.g., BTC/USDT)").pack()
@@ -24,6 +26,8 @@ class TradingApp:
         tk.Button(root, text="Buy", command=self.buy).pack()
         tk.Button(root, text="Sell", command=self.sell).pack()
         tk.Button(root, text="Refresh Portfolio", command=self.refresh_portfolio).pack()
+        tk.Button(root, text="Train Model", command=self.train_model).pack()
+        tk.Button(root, text="Emergency Stop", command=self.emergency_stop, bg="red").pack()
 
         self.portfolio_text = tk.Text(root, height=10, width=50)
         self.portfolio_text.pack()
@@ -53,10 +57,27 @@ class TradingApp:
         try:
             response = requests.get(f"{self.api_url}/portfolio")
             response.raise_for_status()
-            trades = response.json()["trades"]
+            data = response.json()
             self.portfolio_text.delete(1.0, tk.END)
-            for trade in trades:
-                self.portfolio_text.insert(tk.END, f"{trade}\n")
+            for trade in data["trades"]:
+                self.portfolio_text.insert(tk.END, f"Trade: {trade}\n")
+            for position in data["positions"]:
+                self.portfolio_text.insert(tk.END, f"Position: {position}\n")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def train_model(self):
+        try:
+            response = requests.post(f"{self.api_url}/train")
+            response.raise_for_status()
+            messagebox.showinfo("Success", response.json()["status"])
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def emergency_stop(self):
+        try:
+            self.kill_switch.activate()
+            messagebox.showinfo("Emergency", "All trading stopped")
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
