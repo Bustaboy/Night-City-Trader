@@ -9,11 +9,10 @@ from trading.strategies import TradingStrategies
 from trading.risk_manager import RiskManager
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.logger import logger
 from sklearn.cluster import KMeans
-import pandas as pd
-import numpy as np
+import pandas as np
 
 class TradingBot:
     def __init__(self):
@@ -50,14 +49,15 @@ class TradingBot:
             rl_action = self.rl_trainer.predict(data[-1])
             rl_confidence = np.max(self.rl_trainer.model.predict(np.array(data[-1][1:]).reshape(1, -1), verbose=0))
 
-            # Adjust leverage dynamically
+            # Adjust leverage and position size with portfolio value
             market_regime = await self.detect_market_regime()
             leverage = self.risk_manager.adjust_leverage(symbol, rl_confidence, market_regime)
+            adjusted_amount = self.risk_manager.adjust_position_size(symbol, amount)
 
             # Check seasonality
             seasonality = db.fetch_one(
                 "SELECT mean_return FROM seasonality_patterns WHERE symbol = ? AND period = ?",
-                (symbol, f"weekday_{pd.Timestamp.now().weekday()}")
+                (symbol, f"weekday_{datetime.now().weekday()}")
             )
             seasonality_weight = seasonality[0] if seasonality else 0
 
@@ -66,7 +66,7 @@ class TradingBot:
                (side == "sell" and combined_signal < -0.5 and ml_prediction == 0 and rl_action <= 0.5 and seasonality_weight <= 0):
                 # Smart order routing
                 book = await self.fetcher.fetch_order_book(pair, exchange=ex_name)
-                total_amount = amount
+                total_amount = adjusted_amount
                 executed_amount = 0
                 orders = []
                 fee_rate = settings.TRADING["fees"]["maker"] if self.can_use_maker_order(book, side) else settings.TRADING["fees"]["taker"]
@@ -86,6 +86,7 @@ class TradingBot:
                 trade_id = str(uuid.uuid4())
                 avg_price = np.mean([o["price"] for o in orders])
                 fee = sum(o["cost"] * fee_rate for o in orders)
+                profit = (avg_price - float(self.amount_entry.get())) * float(self.amount_entry.get()) - fee if side == "buy" else (float(self.amount_entry.get()) - avg_price) * float(self.amount_entry.get()) - fee
                 
                 # Adaptive SL/TP based on ATR
                 atr = self.calculate_atr(data)
@@ -99,7 +100,7 @@ class TradingBot:
                 }
                 await self.exchange.create_order(pair, "oco", side, amount, None, oco_params)
 
-                # Store trade
+                # Store trade and update portfolio
                 db.execute_query(
                     """
                     INSERT INTO trades (id, symbol, side, amount, price, fee, leverage, timestamp)
@@ -107,8 +108,6 @@ class TradingBot:
                     """,
                     (trade_id, symbol, side, amount, avg_price, fee, leverage, datetime.now().isoformat())
                 )
-                
-                # Store position
                 position_id = str(uuid.uuid4())
                 db.execute_query(
                     """
@@ -117,6 +116,10 @@ class TradingBot:
                     """,
                     (position_id, symbol, side, amount, avg_price, sl_price, tp_price, datetime.now().isoformat())
                 )
+                if profit > 0:
+                    self.risk_manager.reserve_creds(trade_id, profit)
+                new_portfolio_value = db.get_portfolio_value() + profit - fee
+                db.update_portfolio_value(new_portfolio_value)
 
                 # Auto-hedge
                 hedge_symbol, hedge_amount = self.risk_manager.calculate_hedge(symbol, amount)
@@ -130,8 +133,30 @@ class TradingBot:
                 logger.warning(f"Trade rejected by Neural-Net: {symbol}, {side}")
                 raise Exception("Trade not executed: Neural-Net validation failed")
         except Exception as e:
-            logger.error(f"Trade execution failed: {e}")
+            logger.error(f"Trade execution flatlined: {e}")
             raise
+
+    async def convert_idle_funds(self, target="USDT"):
+        try:
+            last_trade = db.fetch_one("SELECT timestamp FROM trades ORDER BY timestamp DESC LIMIT 1")
+            if not last_trade or (datetime.now() - datetime.fromisoformat(last_trade[0])) > timedelta(hours=24):
+                positions = db.fetch_all("SELECT symbol, amount, entry_price FROM positions WHERE side = 'buy'")
+                idle_funds = 0
+                for pos in positions:
+                    current_price = db.fetch_one("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1", (pos[0],))[0]
+                    idle_funds += pos[1] * (current_price - pos[2])
+                if idle_funds > 0:
+                    order = await self.exchange.create_market_order(f"{pos[0]}/{target}", "sell", idle_funds / current_price)
+                    db.execute_query(
+                        """
+                        INSERT INTO positions (id, symbol, side, amount, entry_price, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (str(uuid.uuid4()), f"{pos[0]}/{target}", "hold", idle_funds, current_price, datetime.now().isoformat())
+                    )
+                    logger.info(f"Converted {idle_funds} Eddies to {target} during idle time")
+        except Exception as e:
+            logger.error(f"Idle conversion flatlined: {e}")
 
     def calculate_atr(self, data):
         df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -159,7 +184,7 @@ class TradingBot:
             logger.info(f"Market regime: {regime_map.get(regime, 'bull')}")
             return regime_map.get(regime, "bull")
         except Exception as e:
-            logger.error(f"Regime detection failed: {e}")
+            logger.error(f"Regime detection flatlined: {e}")
             return "bull"
 
     async def backtest_strategy(self, symbol, timeframe, start_date, end_date, strategy):
@@ -185,7 +210,7 @@ class TradingBot:
                 "equity_curve": equity_curve.tolist()
             }
         except Exception as e:
-            logger.error(f"Backtest failed: {e}")
+            logger.error(f"Backtest flatlined: {e}")
             return {"sharpe_ratio": 0, "total_return": 0, "equity_curve": []}
 
     def set_sandbox_mode(self, enabled):
