@@ -3,8 +3,11 @@ trading:
   exchange: binance
   symbol: BTC/USDT
   timeframe: 1h
-  amount: 0.001  # Small amount for testing
-  testnet: true  # Toggle for live trading
+  amount: 0.001
+  testnet: true
+  risk:
+    max_position_size: 0.01  # Max 1% of portfolio per trade
+    max_daily_loss: 0.05  # Max 5% daily loss
 
 ml:
   model_path: ml/model.pkl
