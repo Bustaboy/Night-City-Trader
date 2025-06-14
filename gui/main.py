@@ -1,12 +1,13 @@
 # gui/main.py
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, simpledialog
 import requests
 import asyncio
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from config.settings import settings
 from emergency.kill_switch import kill_switch
+from utils.tax_reporter import tax_reporter
 
 class TradingApp:
     def __init__(self, root):
@@ -75,6 +76,8 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="View Sentiment", command=self.view_sentiment, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="View On-Chain Metrics", command=self.view_onchain, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Run Backtest", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Withdraw Reserves", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
         self.dashboard_text.pack()
@@ -117,7 +120,7 @@ class TradingApp:
             self.pair_combobox.set(pair)
             messagebox.showinfo("Success", f"Optimal pair locked: {pair}")
         except Exception as e:
-            messagebox.showerror("Error", f"Pair scan failed: {e}")
+            messagebox.showerror("Error", f"Pair scan flatlined: {e}")
 
     def buy(self):
         self.execute_trade("buy")
@@ -138,9 +141,13 @@ class TradingApp:
                 }
             )
             response.raise_for_status()
-            messagebox.showinfo("Success", f"Trade executed: {response.json()['status']}")
+            trade_data = response.json()
+            profit = (trade_data["price"] - float(self.amount_entry.get())) * float(self.amount_entry.get()) - trade_data["fee"]
+            if profit > 0:
+                risk_manager.reserve_creds(trade_data["trade_id"], profit)
+            messagebox.showinfo("Success", f"Trade executed: {trade_data['status']}")
         except Exception as e:
-            messagebox.showerror("Error", f"Trade failed: {e}")
+            messagebox.showerror("Error", f"Trade flatlined: {e}")
 
     def refresh_portfolio(self):
         try:
@@ -154,7 +161,7 @@ class TradingApp:
                 self.portfolio_text.insert(tk.END, f"Position: {position}\n")
             self.portfolio_text.insert(tk.END, f"Optimized Weights: {data['optimized_weights']}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"Portfolio refresh failed: {e}")
+            messagebox.showerror("Error", f"Portfolio refresh flatlined: {e}")
 
     def train_model(self):
         try:
@@ -162,7 +169,7 @@ class TradingApp:
             response.raise_for_status()
             messagebox.showinfo("Success", f"Neural-Net retrained: {response.json()['status']}")
         except Exception as e:
-            messagebox.showerror("Error", f"Training failed: {e}")
+            messagebox.showerror("Error", f"Training flatlined: {e}")
 
     def toggle_testnet(self):
         try:
@@ -173,7 +180,7 @@ class TradingApp:
             response.raise_for_status()
             messagebox.showinfo("Success", f"Testnet mode: {self.testnet_var.get()}")
         except Exception as e:
-            messagebox.showerror("Error", f"Testnet toggle failed: {e}")
+            messagebox.showerror("Error", f"Testnet toggle flatlined: {e}")
 
     def scan_arbitrage(self):
         try:
@@ -183,7 +190,7 @@ class TradingApp:
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"Arbitrage: {opportunities}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"Arbitrage scan failed: {e}")
+            messagebox.showerror("Error", f"Arbitrage scan flatlined: {e}")
 
     def check_regime(self):
         try:
@@ -193,7 +200,7 @@ class TradingApp:
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"Market Regime: {regime}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"Regime detection failed: {e}")
+            messagebox.showerror("Error", f"Regime detection flatlined: {e}")
 
     def view_sentiment(self):
         try:
@@ -202,7 +209,7 @@ class TradingApp:
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"Sentiment Score: {sentiment['score']}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"Sentiment fetch failed: {e}")
+            messagebox.showerror("Error", f"Sentiment fetch flatlined: {e}")
 
     def view_onchain(self):
         try:
@@ -210,7 +217,7 @@ class TradingApp:
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"On-Chain Metrics: {metrics}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"On-Chain fetch failed: {e}")
+            messagebox.showerror("Error", f"On-Chain fetch flatlined: {e}")
 
     def run_backtest(self):
         try:
@@ -234,14 +241,30 @@ class TradingApp:
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"Backtest: Sharpe={result['sharpe_ratio']}, Return={result['total_return']}\n")
         except Exception as e:
-            messagebox.showerror("Error", f"Backtest failed: {e}")
+            messagebox.showerror("Error", f"Backtest flatlined: {e}")
+
+    def generate_tax_report(self):
+        country = simpledialog.askstring("Tax Report", "Enter country (e.g., US, Germany):")
+        if country:
+            report = tax_reporter.generate_report(country)
+            if report:
+                messagebox.showinfo("Success", f"Tax report saved as {report} - Check your rig, Choom!")
+
+    def withdraw_reserves(self):
+        reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")
+        total = reserves[0][0] or 0
+        if total > 0:
+            db.execute_query("DELETE FROM reserves")
+            messagebox.showinfo("Success", f"Withdrew {total} Eddies from reserves - Tax man’s paid!")
+        else:
+            messagebox.showinfo("Info", "No creds reserved, Choom - Stack more Eddies!")
 
     def emergency_stop(self):
         try:
             self.loop.run_until_complete(kill_switch.activate())
             messagebox.showinfo("Emergency", "All systems halted by Arasaka Kill Switch")
         except Exception as e:
-            messagebox.showerror("Error", f"Kill Switch failure: {e}")
+            messagebox.showerror("Error", f"Kill Switch flatlined: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
