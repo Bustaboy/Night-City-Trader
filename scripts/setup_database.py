@@ -9,6 +9,7 @@ def init_database():
             side TEXT,
             amount REAL,
             price REAL,
+            fee REAL,
             timestamp TEXT
         )
     """)
