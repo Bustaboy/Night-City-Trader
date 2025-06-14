@@ -2,10 +2,6 @@
 trading:
   exchange: binance
   symbol: BTC/USDT
-  pairs:
-    - BTC/USDT
-    - ETH/USDT
-    - BNB/USDT
   timeframe: 1h
   amount: 0.001
   testnet: true
@@ -28,6 +24,17 @@ trading:
       max_daily_loss: 0.10     # 10% daily loss
       stop_loss: 0.10          # 10% stop-loss
       take_profit: 0.15        # 15% take-profit
+  strategies:
+    breakout:
+      atr_period: 14
+      breakout_threshold: 2.0
+    mean_reversion:
+      rsi_upper: 70
+      rsi_lower: 30
+  pair_selection:
+    min_volume: 1000000  # Minimum 24h volume in USD
+    min_volatility: 0.02  # Minimum daily volatility
+    max_spread: 0.001     # Maximum bid-ask spread
 
 ml:
   model_path: ml/model.pkl
@@ -38,9 +45,25 @@ ml:
     - bollinger_upper
     - bollinger_lower
     - macd
+    - sentiment_score
   train_interval: 86400  # Retrain every 24 hours
   batch_size: 1000
   historical_data_years: 20
 
+rl:
+  model_path: ml/rl_model.h5
+  episodes: 1000
+  gamma: 0.95
+  epsilon: 1.0
+  epsilon_decay: 0.995
+  learning_rate: 0.001
+  batch_size: 64
+
 database:
   url: sqlite:///local_trading.db
+
+sentiment:
+  api_key: your_cryptopanic_api_key
+  sources:
+    - cryptopanic
+    - x
