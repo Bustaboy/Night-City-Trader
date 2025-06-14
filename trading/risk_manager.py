@@ -126,6 +126,25 @@ class RiskManager:
             logger.info(f"Portfolio optimized: {weights}")
             return weights
 
+    def rebalance_trades(self):
+        try:
+            weights = self.optimize_portfolio()
+            portfolio_value = db.get_portfolio_value()
+            for symbol, weight in weights.items():
+                current = db.fetch_one("SELECT amount FROM positions WHERE symbol = ?", (symbol,))[0] or 0
+                current_price = db.fetch_one("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1", (symbol,))[0]
+                target_value = portfolio_value * weight
+                diff_value = target_value - (current * current_price)
+                if diff_value > 0:
+                    amount = diff_value / current_price
+                    asyncio.run(bot.execute_trade(symbol, "buy", amount))
+                elif diff_value < 0:
+                    amount = abs(diff_value) / current_price
+                    asyncio.run(bot.execute_trade(symbol, "sell", amount))
+            logger.info("Portfolio rebalanced: New weights jacked in")
+        except Exception as e:
+            logger.error(f"Rebalance flatlined: {e}")
+
     def calculate_hedge(self, symbol, amount):
         try:
             data = db.fetch_all(
