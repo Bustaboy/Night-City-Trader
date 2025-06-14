@@ -2,12 +2,32 @@
 trading:
   exchange: binance
   symbol: BTC/USDT
+  pairs:
+    - BTC/USDT
+    - ETH/USDT
+    - BNB/USDT
   timeframe: 1h
   amount: 0.001
   testnet: true
+  fees:
+    taker: 0.001  # 0.1% taker fee
+    maker: 0.0005  # 0.05% maker fee
   risk:
-    max_position_size: 0.01  # Max 1% of portfolio per trade
-    max_daily_loss: 0.05  # Max 5% daily loss
+    conservative:
+      max_position_size: 0.005  # 0.5% of portfolio
+      max_daily_loss: 0.02    # 2% daily loss
+      stop_loss: 0.02         # 2% stop-loss
+      take_profit: 0.05       # 5% take-profit
+    moderate:
+      max_position_size: 0.01   # 1% of portfolio
+      max_daily_loss: 0.05     # 5% daily loss
+      stop_loss: 0.05          # 5% stop-loss
+      take_profit: 0.10        # 10% take-profit
+    aggressive:
+      max_position_size: 0.02   # 2% of portfolio
+      max_daily_loss: 0.10     # 10% daily loss
+      stop_loss: 0.10          # 10% stop-loss
+      take_profit: 0.15        # 15% take-profit
 
 ml:
   model_path: ml/model.pkl
@@ -15,8 +35,12 @@ ml:
     - sma_20
     - sma_50
     - rsi_14
+    - bollinger_upper
+    - bollinger_lower
+    - macd
   train_interval: 86400  # Retrain every 24 hours
   batch_size: 1000
+  historical_data_years: 20
 
 database:
   url: sqlite:///local_trading.db
