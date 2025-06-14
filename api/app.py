@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from core.database import db
 from market.data_fetcher import DataFetcher
+from market.pair_selector import pair_selector
 from trading.trading_bot import TradingBot
 from trading.risk_manager import RiskManager
 from config.settings import settings
@@ -17,6 +18,10 @@ class TradeRequest(BaseModel):
     symbol: str
     side: str  # buy/sell
     amount: float
+    risk_profile: str = "moderate"  # conservative, moderate, aggressive
+
+class TestnetToggle(BaseModel):
+    testnet: bool
 
 @app.get("/health")
 async def health_check():
@@ -36,6 +41,11 @@ async def get_market_data(symbol: str):
 @app.post("/trade")
 async def execute_trade(trade: TradeRequest):
     try:
+        # Verify profitability after fees
+        if not risk_manager.check_profitability(trade.symbol, trade.side, trade.amount):
+            raise Exception("Trade rejected: Not profitable after fees")
+        # Apply risk profile
+        risk_manager.set_risk_profile(trade.risk_profile)
         if not risk_manager.check_trade_risk(trade.symbol, trade.side, trade.amount):
             raise Exception("Trade rejected due to risk limits")
         result = await bot.execute_trade(trade.symbol, trade.side, trade.amount)
@@ -65,4 +75,27 @@ async def train_model():
         return {"status": "model_trained"}
     except Exception as e:
         logger.error(f"Model training failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/best_pair")
+async def get_best_pair():
+    try:
+        pair = await pair_selector.select_best_pair(settings.TRADING["timeframe"])
+        logger.info(f"Best pair selected: {pair}")
+        return {"pair": pair}
+    except Exception as e:
+        logger.error(f"Best pair selection failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/testnet")
+async def toggle_testnet(toggle: TestnetToggle):
+    try:
+        settings.TESTNET = toggle.testnet
+        fetcher.exchange.set_sandbox_mode(toggle.testnet)
+        bot.exchange.set_sandbox_mode(toggle.testnet)
+        pair_selector.exchange.set_sandbox_mode(toggle.testnet)
+        logger.info(f"Testnet mode set to: {toggle.testnet}")
+        return {"status": "testnet_updated", "testnet": toggle.testnet}
+    except Exception as e:
+        logger.error(f"Testnet toggle failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
