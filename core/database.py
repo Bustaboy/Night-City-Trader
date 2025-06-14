@@ -1,14 +1,34 @@
 # core/database.py
+"""
+Arasaka Database Core - Handles all data operations in the Neural-Net Trading Matrix
+"""
 import sqlite3
-from config.settings import settings
+from datetime import datetime
+import threading
+import os
 
 class DatabaseManager:
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        self.conn = sqlite3.connect(settings.DATABASE_URL, check_same_thread=False)
-        self.cursor = self.conn.cursor()
-        self.init_tables()
+        if not hasattr(self, 'initialized'):
+            self.db_path = os.getenv("DATABASE_URL", "sqlite:///local_trading.db").replace("sqlite:///", "")
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.cursor = self.conn.cursor()
+            self.init_tables()
+            self.initialized = True
 
     def init_tables(self):
+        """Initialize all database tables for the Trading Matrix"""
+        # Main trading tables
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS trades (
                 id TEXT PRIMARY KEY,
@@ -21,6 +41,7 @@ class DatabaseManager:
                 timestamp TEXT
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS positions (
                 id TEXT PRIMARY KEY,
@@ -33,6 +54,7 @@ class DatabaseManager:
                 timestamp TEXT
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS market_data (
                 symbol TEXT,
@@ -44,6 +66,7 @@ class DatabaseManager:
                 volume REAL
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS historical_data (
                 symbol TEXT,
@@ -56,12 +79,15 @@ class DatabaseManager:
                 PRIMARY KEY (symbol, timestamp)
             )
         """)
+        
+        # Analysis tables
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS market_regimes (
                 timestamp INTEGER PRIMARY KEY,
                 regime TEXT
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS seasonality_patterns (
                 symbol TEXT,
@@ -71,6 +97,8 @@ class DatabaseManager:
                 PRIMARY KEY (symbol, period)
             )
         """)
+        
+        # Financial tables
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS reserves (
                 trade_id TEXT,
@@ -79,12 +107,14 @@ class DatabaseManager:
                 PRIMARY KEY (trade_id)
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS tax_rates (
                 country TEXT PRIMARY KEY,
                 rate REAL
             )
         """)
+        
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS portfolio (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,31 +122,57 @@ class DatabaseManager:
                 timestamp TEXT
             )
         """)
+        
+        # Create indexes for performance
+        self.execute_query("CREATE INDEX IF NOT EXISTS idx_symbol ON historical_data(symbol)")
+        self.execute_query("CREATE INDEX IF NOT EXISTS idx_timestamp ON market_data(timestamp)")
 
     def execute_query(self, query, params=()):
-        self.cursor.execute(query, params)
-        self.conn.commit()
+        """Execute a query with thread safety"""
+        with self._lock:
+            self.cursor.execute(query, params)
+            self.conn.commit()
+
+    def executemany(self, query, params_list):
+        """Execute many queries for batch operations"""
+        with self._lock:
+            self.cursor.executemany(query, params_list)
+            self.conn.commit()
 
     def fetch_all(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchall()
+        """Fetch all results from a query"""
+        with self._lock:
+            self.cursor.execute(query, params)
+            return self.cursor.fetchall()
 
     def fetch_one(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone()
+        """Fetch one result from a query"""
+        with self._lock:
+            self.cursor.execute(query, params)
+            return self.cursor.fetchone()
 
     def store_historical_data(self, symbol, data):
+        """Store historical OHLCV data for a symbol"""
+        if not data:
+            return
+            
+        rows = []
         for row in data:
-            self.execute_query(
+            if len(row) >= 6:
+                rows.append((symbol, row[0], row[1], row[2], row[3], row[4], row[5]))
+        
+        if rows:
+            self.executemany(
                 """
                 INSERT OR REPLACE INTO historical_data
                 (symbol, timestamp, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (symbol, row[0], row[1], row[2], row[3], row[4], row[5])
+                rows
             )
 
     def store_seasonality_pattern(self, symbol, period, mean_return, volatility):
+        """Store seasonality patterns for market analysis"""
         self.execute_query(
             """
             INSERT OR REPLACE INTO seasonality_patterns
@@ -127,24 +183,28 @@ class DatabaseManager:
         )
 
     def update_portfolio_value(self, value):
+        """Update portfolio value in Eddies"""
         try:
-            db.execute_query(
+            self.execute_query(
                 "INSERT INTO portfolio (value, timestamp) VALUES (?, ?)",
                 (value, datetime.now().isoformat())
             )
-            logger.info(f"Portfolio value updated: {value} Eddies")
         except Exception as e:
-            logger.error(f"Portfolio update flatlined: {e}")
+            print(f"Portfolio update flatlined: {e}")
 
     def get_portfolio_value(self):
+        """Get current portfolio value in Eddies"""
         try:
-            value = db.fetch_one("SELECT value FROM portfolio ORDER BY timestamp DESC LIMIT 1")[0] or 100
-            return value
+            result = self.fetch_one("SELECT value FROM portfolio ORDER BY timestamp DESC LIMIT 1")
+            return result[0] if result else 100  # Default 100 Eddies
         except Exception as e:
-            logger.error(f"Portfolio fetch flatlined: {e}")
+            print(f"Portfolio fetch flatlined: {e}")
             return 100
 
     def close(self):
-        self.conn.close()
+        """Close database connection"""
+        if hasattr(self, 'conn'):
+            self.conn.close()
 
+# Singleton instance
 db = DatabaseManager()
