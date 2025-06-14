@@ -42,6 +42,7 @@ trading:
     min_volatility: 0.02
     max_spread: 0.001
     min_liquidity: 100000
+    volume_spike_threshold: 0.5  # 50% volume increase
 
 ml:
   model_path: ml/model.pkl
