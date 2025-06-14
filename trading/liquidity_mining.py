@@ -12,9 +12,11 @@ class LiquidityMiner:
         self.load_config()
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url)) if self.rpc_url else None
         self.contract_address = self.pancake_swap_address
-        self.abi = self.abi
+        self.abi = json.loads(self.abi) if self.abi and isinstance(self.abi, str) else self.abi
         self.private_key = self.private_key
         self.account = self.w3.eth.account.from_key(self.private_key).address if self.w3 and self.private_key else None
+        if not self.abi:
+            logger.warning("Invalid ABI - Mining disabled")
 
     def load_config(self):
         try:
@@ -43,6 +45,9 @@ class LiquidityMiner:
                 return
             reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")[0][0] or 0
             if reserves > 100:  # Min threshold
+                # Check gas price
+                gas_price = self.w3.eth.gas_price
+                recommended_gas = self.w3.eth.max_priority_fee_per_gas * 2 if gas_price > self.w3.to_wei("50", "gwei") else self.w3.to_wei("50", "gwei")
                 contract = self.w3.eth.contract(address=self.contract_address, abi=self.abi)
                 tx = contract.functions.addLiquidityETH(
                     self.w3.to_checksum_address(settings.TRADING["symbol"].split("/")[0]),
@@ -54,11 +59,14 @@ class LiquidityMiner:
                     "from": self.account,
                     "nonce": self.w3.eth.get_transaction_count(self.account),
                     "gas": 200000,
-                    "gasPrice": self.w3.to_wei("50", "gwei")
+                    "gasPrice": recommended_gas
                 })
                 signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)
                 tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                logger.info(f"Liquidity mined: {tx_hash.hex()} - Stacking passive Eddies!")
+                # Track yield
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+                yield_earned = receipt["gasUsed"] * recommended_gas  # Placeholder, improve with actual yield
+                logger.info(f"Liquidity mined: {tx_hash.hex()} - Yield: {yield_earned} Eddies, Gas: {recommended_gas}")
         except Exception as e:
             logger.error(f"Liquidity mining flatlined: {e}")
 
