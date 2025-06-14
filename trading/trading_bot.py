@@ -136,7 +136,7 @@ class TradingBot:
             logger.error(f"Trade execution flatlined: {e}")
             raise
 
-    async def convert_idle_funds(self, target="USDT"):
+    async def convert_idle_funds(self, target=None):
         try:
             last_trade = db.fetch_one("SELECT timestamp FROM trades ORDER BY timestamp DESC LIMIT 1")
             if not last_trade or (datetime.now() - datetime.fromisoformat(last_trade[0])) > timedelta(hours=24):
@@ -146,6 +146,8 @@ class TradingBot:
                     current_price = db.fetch_one("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1", (pos[0],))[0]
                     idle_funds += pos[1] * (current_price - pos[2])
                 if idle_funds > 0:
+                    market_regime = await self.detect_market_regime()
+                    target = "USDT" if market_regime == "bear" else "BTC" if target is None else target
                     order = await self.exchange.create_market_order(f"{pos[0]}/{target}", "sell", idle_funds / current_price)
                     db.execute_query(
                         """
@@ -154,7 +156,7 @@ class TradingBot:
                         """,
                         (str(uuid.uuid4()), f"{pos[0]}/{target}", "hold", idle_funds, current_price, datetime.now().isoformat())
                     )
-                    logger.info(f"Converted {idle_funds} Eddies to {target} during idle time")
+                    logger.info(f"Converted {idle_funds} Eddies to {target} during idle time in {market_regime} market")
         except Exception as e:
             logger.error(f"Idle conversion flatlined: {e}")
 
