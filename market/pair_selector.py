@@ -9,71 +9,110 @@ from utils.logger import logger
 
 class PairSelector:
     def __init__(self):
-        self.exchange = ccxt.binance({
-            "apiKey": settings.BINANCE_API_KEY,
-            "secret": settings.BINANCE_API_SECRET,
-            "enableRateLimit": True
-        })
-        if settings.TESTNET:
-            self.exchange.set_sandbox_mode(True)
+        self.exchanges = {}
+        for ex in settings.TRADING["exchanges"]:
+            exchange_class = getattr(ccxt, ex)
+            self.exchanges[ex] = exchange_class({
+                "apiKey": settings.BINANCE_API_KEY if ex == "binance" else "",
+                "secret": settings.BINANCE_API_SECRET if ex == "binance" else "",
+                "enableRateLimit": True
+            })
+            if settings.TESTNET:
+                self.exchanges[ex].set_sandbox_mode(True)
 
     async def select_best_pair(self, timeframe, limit=100):
         try:
-            await self.exchange.load_markets()
-            pairs = [p for p in self.exchange.markets.keys() if p.endswith("/USDT")]
-            scores = []
-            for pair in pairs:
-                try:
-                    data = await self.exchange.fetch_ohlcv(pair, timeframe, limit=limit)
-                    ticker = await self.exchange.fetch_ticker(pair)
-                    volume = ticker["quoteVolume"]
-                    spread = (ticker["ask"] - ticker["bid"]) / ticker["bid"]
-                    volatility = np.std([d[4] for d in data]) / np.mean([d[4] for d in data])
-                    if (volume < settings.TRADING["pair_selection"]["min_volume"] or
-                        volatility < settings.TRADING["pair_selection"]["min_volatility"] or
-                        spread > settings.TRADING["pair_selection"]["max_spread"]):
+            best_pair = None
+            best_score = -1
+            for ex_name, ex in self.exchanges.items():
+                await ex.load_markets()
+                pairs = [p for p in ex.markets.keys() if p.endswith("/USDT")]
+                for pair in pairs:
+                    try:
+                        data = await fetcher.fetch_ohlcv(pair, timeframe, limit=limit, exchange=ex_name)
+                        ticker = await ex.fetch_ticker(pair)
+                        book = await fetcher.fetch_order_book(pair, exchange=ex_name)
+                        volume = ticker["quoteVolume"]
+                        spread = (ticker["ask"] - ticker["bid"]) / ticker["bid"]
+                        volatility = np.std([d[4] for d in data]) / np.mean([d[4] for d in data])
+                        liquidity = sum(b[1] for b in book["bids"][:5]) + sum(a[1] for a in book["asks"][:5])
+                        if (volume < settings.TRADING["pair_selection"]["min_volume"] or
+                            volatility < settings.TRADING["pair_selection"]["min_volatility"] or
+                            spread > settings.TRADING["pair_selection"]["max_spread"] or
+                            liquidity < settings.TRADING["pair_selection"]["min_liquidity"]):
+                            continue
+                        prediction = trainer.predict(data[-1])
+                        rl_score = rl_trainer.predict(data[-1])
+                        score = (prediction + rl_score) * volume * volatility * liquidity / (spread + 1e-6)
+                        logger.info(f"Evaluated {ex_name}:{pair}: Score={score}")
+                        if score > best_score:
+                            best_score = score
+                            best_pair = f"{ex_name}:{pair}"
+                    except:
                         continue
-                    prediction = trainer.predict(data[-1])
-                    rl_score = rl_trainer.predict(data[-1])
-                    score = (prediction + rl_score) * volume * volatility / (spread + 1e-6)
-                    scores.append((pair, score))
-                    logger.info(f"Evaluated pair {pair}: Score={score}")
-                except:
-                    continue
-            if scores:
-                best_pair = max(scores, key=lambda x: x[1])[0]
+            if best_pair:
                 logger.info(f"Selected best pair: {best_pair}")
                 return best_pair
             logger.warning("No suitable pair found")
-            return settings.TRADING["symbol"]
+            return f"binance:{settings.TRADING['symbol']}"
         except Exception as e:
             logger.error(f"Pair selection failed: {e}")
-            return settings.TRADING["symbol"]
+            return f"binance:{settings.TRADING['symbol']}"
 
     async def detect_arbitrage(self):
         try:
-            await self.exchange.load_markets()
             opportunities = []
-            pairs = [p for p in self.exchange.markets.keys() if p.endswith("/USDT")]
-            for i, pair1 in enumerate(pairs):
-                for pair2 in pairs[i+1:]:
-                    for pair3 in pairs:
-                        if pair1.split("/")[0] == pair3.split("/")[0] and pair2.split("/")[0] == pair3.split("/")[1]:
-                            ticker1 = await self.exchange.fetch_ticker(pair1)
-                            ticker2 = await self.exchange.fetch_ticker(pair2)
-                            ticker3 = await self.exchange.fetch_ticker(pair3)
-                            profit = (1 / ticker1["ask"]) * ticker2["bid"] * ticker3["bid"] - 1
-                            if profit > 0.01:  # 1% profit after fees
-                                opportunities.append({
-                                    "path": [pair1, pair2, pair3],
-                                    "profit": profit
-                                })
+            for pair in [p for p in self.exchanges["binance"].markets.keys() if p.endswith("/USDT")]:
+                try:
+                    prices = {}
+                    for ex_name, ex in self.exchanges.items():
+                        await ex.load_markets()
+                        if pair in ex.markets:
+                            ticker = await ex.fetch_ticker(pair)
+                            prices[ex_name] = {"bid": ticker["bid"], "ask": ticker["ask"]}
+                    for ex1 in prices:
+                        for ex2 in prices:
+                            if ex1 != ex2:
+                                profit = (prices[ex2]["bid"] / prices[ex1]["ask"] - 1) - 2 * settings.TRADING["fees"]["taker"]
+                                if profit > 0.01:
+                                    opportunities.append({
+                                        "pair": pair,
+                                        "buy_exchange": ex1,
+                                        "sell_exchange": ex2,
+                                        "profit": profit
+                                    })
+                    # Triangular arbitrage within Binance
+                    binance = self.exchanges["binance"]
+                    await binance.load_markets()
+                    pairs = [p for p in binance.markets.keys() if p.endswith("/USDT")]
+                    for i, pair1 in enumerate(pairs):
+                        for pair2 in pairs[i+1:]:
+                            for pair3 in pairs:
+                                if pair1.split("/")[0] == pair3.split("/")[0] and pair2.split("/")[0] == pair3.split("/")[1]:
+                                    ticker1 = await binance.fetch_ticker(pair1)
+                                    ticker2 = await binance.fetch_ticker(pair2)
+                                    ticker3 = await binance.fetch_ticker(pair3)
+                                    profit = (1 / ticker1["ask"]) * ticker2["bid"] * ticker3["bid"] - 1
+                                    if profit > 0.01:
+                                        opportunities.append({
+                                            "path": [pair1, pair2, pair3],
+                                            "profit": profit,
+                                            "exchange": "binance"
+                                        })
+                except:
+                    continue
+            logger.info(f"Arbitrage scan: {len(opportunities)} opportunities")
             return opportunities
         except Exception as e:
             logger.error(f"Arbitrage detection failed: {e}")
             return []
 
+    def set_sandbox_mode(self, enabled):
+        for ex in self.exchanges.values():
+            ex.set_sandbox_mode(enabled)
+
     async def close(self):
-        await self.exchange.close()
+        for ex in self.exchanges.values():
+            await ex.close()
 
 pair_selector = PairSelector()
