@@ -79,6 +79,12 @@ class DatabaseManager:
                 PRIMARY KEY (trade_id)
             )
         """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS tax_rates (
+                country TEXT PRIMARY KEY,
+                rate REAL
+            )
+        """)
 
     def execute_query(self, query, params=()):
         self.cursor.execute(query, params)
