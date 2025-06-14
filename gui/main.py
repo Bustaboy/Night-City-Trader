@@ -10,6 +10,8 @@ from emergency.kill_switch import kill_switch
 from utils.tax_reporter import tax_reporter
 from trading.trading_bot import TradingBot
 import time
+import shutil
+import os
 
 class TradingApp:
     def __init__(self, root):
@@ -38,6 +40,11 @@ class TradingApp:
         self.auto_sentiment_update = tk.BooleanVar(value=True)
         self.auto_onchain_update = tk.BooleanVar(value=True)
         self.auto_profit_withdraw = tk.BooleanVar(value=True)
+        self.auto_trade = tk.BooleanVar(value=False)
+        self.auto_health_alert = tk.BooleanVar(value=True)
+        self.auto_backup = tk.BooleanVar(value=True)
+        self.auto_regime_adjust = tk.BooleanVar(value=True)
+        self.auto_fee_optimize = tk.BooleanVar(value=True)
         self.last_tax_update = 0
         self.last_rebalance = 0
         self.last_idle_check = 0
@@ -47,6 +54,10 @@ class TradingApp:
         self.last_sentiment_update = 0
         self.last_onchain_update = 0
         self.last_profit_withdraw = 0
+        self.last_health_alert = 0
+        self.last_backup = 0
+        self.last_regime_adjust = 0
+        self.last_fee_optimize = 0
 
         # Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
@@ -84,9 +95,9 @@ class TradingApp:
         self.testnet_var = tk.BooleanVar(value=settings.TESTNET)
         tk.Checkbutton(self.trading_frame, text="Enable Testnet", variable=self.testnet_var, command=self.toggle_testnet, style="Cyber.TCheckbutton").pack()
 
-        tk.Button(self.trading_frame, text="Scan Optimal Pair", command=self.select_best_pair, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.trading_frame, text="Buy (Stack Eddies)", command=self.buy, bg="#00ffcc", fg="#0a0a23").pack()
-        tk.Button(self.trading_frame, text="Sell (Cash Out)", command=self.sell, bg="#00ffcc", fg="#0a0a23").pack()
+        tk.Checkbutton(self.trading_frame, text="Auto Trade (RL > 0.8)", variable=self.auto_trade, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.trading_frame, text="Buy Now (Stack Eddies)", command=lambda: self.execute_trade("buy"), bg="#00ffcc", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Sell Now (Cash Out)", command=lambda: self.execute_trade("sell"), bg="#00ffcc", fg="#0a0a23").pack()
         tk.Button(self.trading_frame, text="Refresh Portfolio", command=self.refresh_portfolio, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.trading_frame, text="Train Neural-Net", command=self.train_model, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.trading_frame, text="Emergency Kill Switch", command=self.emergency_stop, bg="#ff0000", fg="#ffffff").pack()
@@ -116,6 +127,14 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="Refresh On-Chain Now", command=self.view_onchain, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Checkbutton(self.dashboard_frame, text="Auto Profit Withdraw (Monthly)", variable=self.auto_profit_withdraw, style="Cyber.TCheckbutton").pack()
         tk.Button(self.dashboard_frame, text="Withdraw Profits Now", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Health Alerts (Daily)", variable=self.auto_health_alert, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Check Health Now", command=self.check_health_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Backup (Daily)", variable=self.auto_backup, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Backup Now", command=self.backup_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Regime Adjust (Daily)", variable=self.auto_regime_adjust, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Adjust Regime Now", command=self.adjust_regime_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Fee Optimize (Hourly)", variable=self.auto_fee_optimize, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Optimize Fees Now", command=self.optimize_fees_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
@@ -162,6 +181,21 @@ class TradingApp:
         if self.auto_profit_withdraw.get() and current_time - self.last_profit_withdraw > 30 * 24 * 3600:  # Monthly
             self.withdraw_reserves()
             self.last_profit_withdraw = current_time
+        if self.auto_trade.get() and current_time - self.last_train > 3600:  # Hourly after train
+            self.auto_trade_now()
+            self.last_train = current_time  # Reset to align with training
+        if self.auto_health_alert.get() and current_time - self.last_health_alert > 24 * 3600:  # Daily
+            self.check_health_now()
+            self.last_health_alert = current_time
+        if self.auto_backup.get() and current_time - self.last_backup > 24 * 3600:  # Daily
+            self.backup_now()
+            self.last_backup = current_time
+        if self.auto_regime_adjust.get() and current_time - self.last_regime_adjust > 24 * 3600:  # Daily
+            self.adjust_regime_now()
+            self.last_regime_adjust = current_time
+        if self.auto_fee_optimize.get() and current_time - self.last_fee_optimize > 3600:  # Hourly
+            self.optimize_fees_now()
+            self.last_fee_optimize = current_time
         self.root.after(3600000, self.schedule_automation)  # Check hourly
 
     def update_pair_list(self):
@@ -221,6 +255,18 @@ class TradingApp:
                 asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
         except Exception as e:
             messagebox.showerror("Error", f"Trade flatlined: {e}")
+
+    def auto_trade_now(self):
+        try:
+            response = requests.get(f"{self.api_url}/predict/{self.pair_combobox.get()}")
+            response.raise_for_status()
+            rl_confidence = response.json()["confidence"]
+            if rl_confidence > 0.8:
+                side = "buy" if response.json()["action"] > 0.5 else "sell"
+                self.execute_trade(side)
+                messagebox.showinfo("Auto Trade", f"Auto-traded {side} with confidence {rl_confidence}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Auto trade flatlined: {e}")
 
     def refresh_portfolio(self):
         try:
@@ -369,6 +415,50 @@ class TradingApp:
             messagebox.showinfo("Success", "Data preloaded - Net’s fresh!")
         except Exception as e:
             messagebox.showerror("Error", f"Data preload flatlined: {e}")
+
+    def check_health_now(self):
+        try:
+            portfolio_value = db.get_portfolio_value()
+            daily_pnl = sum(t[0] * t[1] * (-1 if t[2] == "sell" else 1) for t in db.fetch_all("SELECT amount, price, side FROM trades WHERE timestamp >= date('now', 'start of day')"))
+            if daily_pnl < -0.05 * portfolio_value or float(self.leverage_entry.get()) > 2.0:
+                messagebox.showwarning("Health Alert", f"Risk! Drawdown: {daily_pnl}, Leverage: {self.leverage_entry.get()}")
+            else:
+                messagebox.showinfo("Health Check", "All systems green - Stack more Eddies!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Health check flatlined: {e}")
+
+    def backup_now(self):
+        try:
+            db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+            backup_path = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+            shutil.copy2(db_path, backup_path)
+            logger.info(f"Backup created: {backup_path} - Arasaka can’t wipe it!")
+            messagebox.showinfo("Success", f"Backup saved as {backup_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Backup flatlined: {e}")
+
+    def adjust_regime_now(self):
+        try:
+            regime = asyncio.run(self.bot.detect_market_regime())
+            if regime == "bear":
+                risk_manager.max_leverage = min(risk_manager.max_leverage, 1.0)
+            elif regime == "bull":
+                risk_manager.max_leverage = settings.TRADING["risk"][risk_manager.risk_profile]["max_leverage"]
+            messagebox.showinfo("Success", f"Regime adjusted to {regime} - Leverage set to {risk_manager.max_leverage}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Regime adjust flatlined: {e}")
+
+    def optimize_fees_now(self):
+        try:
+            book = asyncio.run(self.bot.fetcher.fetch_order_book(self.pair_combobox.get()))
+            spread = book["asks"][0][0] - book["bids"][0][0]
+            if spread > 0.001:
+                settings.TRADING["fees"]["taker"] = settings.TRADING["fees"]["maker"]  # Switch to maker
+                messagebox.showinfo("Success", "Fees optimized to maker rate - Saving Eddies!")
+            else:
+                messagebox.showinfo("Info", "Spread too tight - Keeping taker fees")
+        except Exception as e:
+            messagebox.showerror("Error", f"Fee optimization flatlined: {e}")
 
     def emergency_stop(self):
         try:
