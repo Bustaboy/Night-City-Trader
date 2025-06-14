@@ -77,7 +77,7 @@ class RLTrainer:
                     self.replay()
                 if episode % 10 == 0:
                     self.target_model.set_weights(self.model.get_weights())
-                    logger.info(f"RL training episode {episode} completed")
+                    logger.info(f"RL episode {episode} completed")
             self.model.save(self.model_path)
             logger.info(f"RL model saved to {self.model_path}")
         except Exception as e:
@@ -99,14 +99,17 @@ class RLTrainer:
         ema12 = df["close"].ewm(span=12, adjust=False).mean()
         ema26 = df["close"].ewm(span=26, adjust=False).mean()
         df["macd"] = ema12 - ema26
+        df["sentiment_score"] = 0.0
+        df["whale_ratio"] = 0.0
         return df
 
     def calculate_reward(self, row, action):
         price_change = row["close"] - row["open"]
+        fee = settings.TRADING["fees"]["taker"]
         if action == 0:  # Buy
-            return price_change / row["open"] - settings.TRADING["fees"]["taker"]
+            return price_change / row["open"] - fee
         elif action == 1:  # Sell
-            return -price_change / row["open"] - settings.TRADING["fees"]["taker"]
+            return -price_change / row["open"] - fee
         return 0  # Hold
 
     def predict(self, data):
@@ -114,7 +117,7 @@ class RLTrainer:
             df = pd.DataFrame([data], columns=["timestamp", "open", "high", "low", "close", "volume"])
             df = self.calculate_indicators(df)
             state = df[settings.ML["features"]].values[0]
-            return self.act(state) / 2  # Normalize to [0, 1] for scoring
+            return self.act(state) / 2
         except Exception as e:
             logger.error(f"RL prediction failed: {e}")
             return 0.5
