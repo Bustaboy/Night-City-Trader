@@ -1,22 +1,65 @@
 # trading/liquidity_mining.py
 from web3 import Web3
-from config.settings import settings
-from core.database import db
 from utils.logger import logger
 import asyncio
+import json
+import os
+from config.settings import settings
 
 class LiquidityMiner:
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(settings.DEFI["rpc_url"]))
-        self.contract_address = settings.DEFI["pancake_swap_address"]
-        self.private_key = settings.DEFI["private_key"]
-        self.account = self.w3.eth.account.from_key(self.private_key).address
+        self.config_file = "defi_config.json"
+        self.load_config()
+        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url)) if self.rpc_url else None
+        self.contract_address = self.pancake_swap_address
+        self.private_key = self.private_key
+        self.account = self.w3.eth.account.from_key(self.private_key).address if self.w3 and self.private_key else None
+
+    def load_config(self):
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, "r") as f:
+                    config = json.load(f)
+                    self.rpc_url = config.get("rpc_url")
+                    self.pancake_swap_address = config.get("pancake_swap_address")
+                    self.abi = config.get("abi")
+                    self.private_key = config.get("private_key")
+            else:
+                self.rpc_url = None
+                self.pancake_swap_address = None
+                self.abi = None
+                self.private_key = None
+                logger.warning("DeFi config not found - Mining disabled")
+        except Exception as e:
+            logger.error(f"Config load flatlined: {e}")
+            self.rpc_url = None
+            self.pancake_swap_address = None
+            self.abi = None
+            self.private_key = None
+
+    def save_config(self, rpc_url, pancake_swap_address, abi, private_key):
+        try:
+            config = {
+                "rpc_url": rpc_url,
+                "pancake_swap_address": pancake_swap_address,
+                "abi": abi,
+                "private_key": private_key
+            }
+            with open(self.config_file, "w") as f:
+                json.dump(config, f)
+            self.load_config()
+            logger.info("DeFi config saved - Ready to mine, Choom!")
+        except Exception as e:
+            logger.error(f"Config save flatlined: {e}")
 
     async def auto_mine_liquidity(self):
         try:
+            if not all([self.w3, self.contract_address, self.private_key, self.account]):
+                logger.warning("DeFi config incomplete - Mining skipped")
+                return
             reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")[0][0] or 0
             if reserves > 100:  # Min threshold
-                contract = self.w3.eth.contract(address=self.contract_address, abi=settings.DEFI["abi"])
+                contract = self.w3.eth.contract(address=self.contract_address, abi=self.abi)
                 tx = contract.functions.addLiquidityETH(
                     self.w3.to_checksum_address(settings.TRADING["symbol"].split("/")[0]),
                     int(reserves * 0.1),  # 10% of reserves
