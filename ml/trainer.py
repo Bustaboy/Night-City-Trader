@@ -13,6 +13,7 @@ class MLTrainer:
         self.model_path = settings.ML["model_path"]
         self.features = settings.ML["features"]
         self.scaler = StandardScaler()
+        self.fetcher = DataFetcher()
 
     def calculate_indicators(self, df):
         df["sma_20"] = df["close"].rolling(window=20).mean()
@@ -22,6 +23,15 @@ class MLTrainer:
         loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
         rs = gain / loss
         df["rsi_14"] = 100 - (100 / (1 + rs))
+        # Bollinger Bands
+        df["sma_20"] = df["close"].rolling(window=20).mean()
+        df["std_20"] = df["close"].rolling(window=20).std()
+        df["bollinger_upper"] = df["sma_20"] + 2 * df["std_20"]
+        df["bollinger_lower"] = df["sma_20"] - 2 * df["std_20"]
+        # MACD
+        ema12 = df["close"].ewm(span=12, adjust=False).mean()
+        ema26 = df["close"].ewm(span=26, adjust=False).mean()
+        df["macd"] = ema12 - ema26
         return df
 
     def prepare_data(self, data):
@@ -34,13 +44,19 @@ class MLTrainer:
         X_scaled = self.scaler.fit_transform(X)
         return X_scaled, y
 
-    def train(self, data):
-        X, y = self.prepare_data(data)
-        model = xgb.XGBClassifier(n_estimators=100, learning_rate=0.1)
-        model.fit(X, y)
-        joblib.dump(model, self.model_path)
-        logger.info(f"Model saved to {self.model_path}")
-        return model
+    async def train(self, symbol=None):
+        try:
+            symbol = symbol or settings.TRADING["symbol"]
+            data = await self.fetcher.fetch_historical_data(symbol, settings.TRADING["timeframe"], settings.ML["historical_data_years"])
+            X, y = self.prepare_data(data)
+            model = xgb.XGBClassifier(n_estimators=100, learning_rate=0.1)
+            model.fit(X, y)
+            joblib.dump(model, self.model_path)
+            logger.info(f"Model saved to {self.model_path}")
+            return model
+        except Exception as e:
+            logger.error(f"Model training failed: {e}")
+            raise
 
     def predict(self, data):
         try:
