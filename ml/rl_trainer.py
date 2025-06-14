@@ -14,6 +14,8 @@ class RLTrainer:
     def __init__(self):
         self.state_size = len(settings.ML["features"])
         self.action_size = 3  # Buy, Sell, Hold
+        self.gpu_available = len(tf.config.list_physical_devices('GPU')) > 0
+        logger.info(f"GPU available: {self.gpu_available}")
         self.model = self.build_model()
         self.target_model = self.build_model()
         self.memory = deque(maxlen=2000)
@@ -21,13 +23,13 @@ class RLTrainer:
         self.epsilon = settings.RL["epsilon"]
         self.epsilon_min = 0.01
         self.epsilon_decay = settings.RL["epsilon_decay"]
-        self.batch_size = settings.RL["batch_size"]
+        self.batch_size = settings.RL["batch_size"] * (4 if self.gpu_available else 1)  # Scale for GPU
         self.model_path = settings.RL["model_path"]
 
     def build_model(self):
         model = Sequential([
-            Dense(64, input_dim=self.state_size, activation="relu"),
-            Dense(32, activation="relu"),
+            Dense(128, input_dim=self.state_size, activation="relu"),
+            Dense(64, activation="relu"),
             Dense(self.action_size, activation="linear")
         ])
         model.compile(loss="mse", optimizer=tf.keras.optimizers.Adam(learning_rate=settings.RL["learning_rate"]))
@@ -40,7 +42,8 @@ class RLTrainer:
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
         state = np.array(state).reshape(1, -1)
-        act_values = self.model.predict(state, verbose=0)
+        with tf.device('/GPU:0' if self.gpu_available else '/CPU:0'):
+            act_values = self.model.predict(state, verbose=0)
         return np.argmax(act_values[0])
 
     def replay(self):
@@ -49,14 +52,16 @@ class RLTrainer:
         minibatch = random.sample(self.memory, self.batch_size)
         states = np.array([t[0] for t in minibatch])
         next_states = np.array([t[3] for t in minibatch])
-        targets = self.model.predict(states, verbose=0)
-        next_qs = self.target_model.predict(next_states, verbose=0)
+        with tf.device('/GPU:0' if self.gpu_available else '/CPU:0'):
+            targets = self.model.predict(states, verbose=0)
+            next_qs = self.target_model.predict(next_states, verbose=0)
         for i, (state, action, reward, next_state, done) in enumerate(minibatch):
             target = reward
             if not done:
                 target = reward + self.gamma * np.amax(next_qs[i])
             targets[i][action] = target
-        self.model.fit(states, targets, epochs=1, verbose=0)
+        with tf.device('/GPU:0' if self.gpu_available else '/CPU:0'):
+            self.model.fit(states, targets, epochs=1, verbose=0)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
