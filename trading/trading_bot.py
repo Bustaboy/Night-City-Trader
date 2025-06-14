@@ -156,7 +156,7 @@ class TradingBot:
                         """,
                         (str(uuid.uuid4()), f"{pos[0]}/{target}", "hold", idle_funds, current_price, datetime.now().isoformat())
                     )
-                    logger.info(f"Converted {idle_funds} Eddies to {target} during idle time in {market_regime} market")
+                    logger.info(f"Converted {idle_funds} Eddies to {target} during idle time - Arasaka can’t touch it!")
         except Exception as e:
             logger.error(f"Idle conversion flatlined: {e}")
 
