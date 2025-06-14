@@ -767,6 +767,114 @@ class TradingApp:
         except Exception as e:
             messagebox.showerror("Error", f"Kill Switch flatlined: {e}")
 
+# gui/main.py (add new tab for Onboarding)
+self.onboarding_frame = tk.Frame(self.notebook, bg="#0a0a23")
+self.notebook.add(self.onboarding_frame, text="Onboarding")
+tk.Label(self.onboarding_frame, text="Step 1: Enter API Key", style="Cyber.TLabel").pack()
+self.api_key_entry = tk.Entry(self.onboarding_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+self.api_key_entry.pack()
+tk.Label(self.onboarding_frame, text="Step 2: Set Risk (Low/Med/High)", style="Cyber.TLabel").pack()
+self.risk_onboard = ttk.Combobox(self.onboarding_frame, values=["Low", "Medium", "High"], style="Cyber.TCombobox")
+self.risk_onboard.set("Medium")
+self.risk_onboard.pack()
+tk.Button(self.onboarding_frame, text="Finish Onboarding", command=self.finish_onboarding, bg="#ff00ff", fg="#0a0a23").pack()
+
+# gui/main.py (add profit notification and error recovery)
+def schedule_automation(self):
+    current_time = time.time()
+    if self.auto_tax_update.get() and current_time - self.last_tax_update > 7 * 24 * 3600:  # Weekly
+        self.update_tax_rates()
+        self.last_tax_update = current_time
+    if self.auto_rebalance.get() and current_time - self.last_rebalance > 7 * 24 * 3600:  # Weekly
+        self.rebalance_portfolio()
+        self.last_rebalance = current_time
+    if self.auto_idle_conversion.get() and current_time - self.last_idle_check > 24 * 3600:  # Daily
+        asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
+        self.last_idle_check = current_time
+    if self.auto_model_train.get() and current_time - self.last_train > 7 * 24 * 3600:  # Weekly
+        self.train_model()
+        self.last_train = current_time
+    if self.auto_data_preload.get() and current_time - self.last_data_preload > 24 * 3600:  # Daily
+        self.preload_data_now()
+        self.last_data_preload = current_time
+    if self.auto_arbitrage_scan.get() and current_time - self.last_arbitrage_scan > 3600:  # Hourly
+        self.scan_arbitrage()
+        self.last_arbitrage_scan = current_time
+    if self.auto_sentiment_update.get() and current_time - self.last_sentiment_update > 24 * 3600:  # Daily
+        self.view_sentiment()
+        self.last_sentiment_update = current_time
+    if self.auto_onchain_update.get() and current_time - self.last_onchain_update > 24 * 3600:  # Daily
+        self.view_onchain()
+        self.last_onchain_update = current_time
+    if self.auto_profit_withdraw.get() and current_time - self.last_profit_withdraw > 30 * 24 * 3600:  # Monthly
+        self.withdraw_reserves()
+        self.last_profit_withdraw = current_time
+    if self.auto_trade.get() and current_time - self.last_train > 3600:  # Hourly after train
+        self.auto_trade_now()
+        self.last_train = current_time  # Reset to align with training
+    if self.auto_health_alert.get() and current_time - self.last_health_alert > 24 * 3600:  # Daily
+        self.check_health_now()
+        self.last_health_alert = current_time
+    if self.auto_backup.get() and current_time - self.last_backup > 24 * 3600:  # Daily
+        self.backup_now()
+        self.last_backup = current_time
+    if self.auto_regime_adjust.get() and current_time - self.last_regime_adjust > 24 * 3600:  # Daily
+        self.adjust_regime_now()
+        self.last_regime_adjust = current_time
+    if self.auto_fee_optimize.get() and current_time - self.last_fee_optimize > 3600:  # Hourly
+        self.optimize_fees_now()
+        self.last_fee_optimize = current_time
+    if self.auto_pair_rotation.get() and current_time - self.last_pair_rotation > 24 * 3600:  # Daily
+        self.rotate_pairs_now()
+        self.last_pair_rotation = current_time
+    if self.auto_risk_hedging.get() and current_time - self.last_risk_hedging > 3600:  # Hourly
+        risk_manager.auto_hedge()
+        self.last_risk_hedging = current_time
+    if self.auto_social_trend.get() and current_time - self.last_social_trend > 24 * 3600:  # Daily
+        asyncio.run(sentiment_analyzer.auto_exploit_trends())
+        self.last_social_trend = current_time
+    if self.auto_liquidity_mining.get() and current_time - self.last_liquidity_mining > 7 * 24 * 3600:  # Weekly
+        asyncio.run(liquidity_miner.auto_mine_liquidity())
+        self.last_liquidity_mining = current_time
+    if self.auto_performance_analytics.get() and current_time - self.last_performance_analytics > 24 * 3600:  # Daily
+        asyncio.run(performance_analyzer.auto_analyze_performance())
+        self.last_performance_analytics = current_time
+    if self.auto_flash_protection.get() and current_time - self.last_flash_protection > 3600:  # Hourly
+        self.protect_now()
+        self.last_flash_protection = current_time
+    # Profit Notification
+    if current_time - self.last_health_alert > 24 * 3600:  # Daily with health check
+        portfolio_value = db.get_portfolio_value()
+        daily_pnl = sum(t[0] * t[1] * (-1 if t[2] == "sell" else 1) for t in db.fetch_all("SELECT amount, price, side FROM trades WHERE timestamp >= date('now', 'start of day')"))
+        if daily_pnl > 0.01 * portfolio_value:
+            messagebox.showinfo("Profit Alert", f"Profit today: {daily_pnl} Eddies - Nice haul, Choom!")
+    # Error Recovery
+    if hasattr(self, 'last_error_time') and current_time - self.last_error_time < 300:  # 5-min retry
+        self.retry_failed_task()
+    self.root.after(3600000, self.schedule_automation)  # Check hourly
+
+    def finish_onboarding(self):
+        try:
+            settings.BINANCE_API_KEY = self.api_key_entry.get()
+            risk_level = {"Low": "conservative", "Medium": "moderate", "High": "aggressive"}[self.risk_onboard.get()]
+            risk_manager.set_risk_profile(risk_level)
+            messagebox.showinfo("Success", "Onboarding complete - You’re in the game, Choom!")
+            self.notebook.select(self.trading_frame)
+        except Exception as e:
+            messagebox.showerror("Error", f"Onboarding flatlined: {e}")
+
+def retry_failed_task(self):
+    try:
+        if hasattr(self, 'last_failed_task'):
+            if self.last_failed_task == "trade":
+                self.auto_trade_now()
+            elif self.last_failed_task == "preload":
+                self.preload_data_now()
+            self.last_error_time = 0  # Reset after success
+            logger.info("Error recovered - Back in action!")
+    except Exception as e:
+        logger.error(f"Retry flatlined: {e}")
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = TradingApp(root)
