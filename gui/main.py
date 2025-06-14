@@ -12,6 +12,7 @@ from trading.trading_bot import TradingBot
 from market.pair_selector import pair_selector
 from trading.liquidity_mining import liquidity_miner
 from trading.analyze_performance import performance_analyzer
+from utils.security_manager import security_manager
 import time
 import shutil
 import os
@@ -73,9 +74,19 @@ class TradingApp:
         self.last_liquidity_mining = 0
         self.last_performance_analytics = 0
 
+        # Security Vars
+        self.pin_var = tk.StringVar()
+
         # Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill="both", expand=True)
+
+        # Login Tab
+        self.login_frame = tk.Frame(self.notebook, bg="#0a0a23")
+        self.notebook.add(self.login_frame, text="Login")
+        tk.Label(self.login_frame, text="Enter PIN", style="Cyber.TLabel").pack()
+        tk.Entry(self.login_frame, textvariable=self.pin_var, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff", show="*").pack()
+        tk.Button(self.login_frame, text="Login", command=self.login, bg="#ff00ff", fg="#0a0a23").pack()
 
         # Trading Tab
         self.trading_frame = tk.Frame(self.notebook, bg="#0a0a23")
@@ -170,6 +181,8 @@ class TradingApp:
         self.status_label.pack()
 
         self.load_defi_settings()  # Load on startup
+        if not security_manager.self_test() or not security_manager.check_tamper():
+            self.root.destroy()  # Exit if security fails
         self.update_pair_list()
         self.update_status()
         self.schedule_automation()
@@ -272,6 +285,9 @@ class TradingApp:
 
     def execute_trade(self, side):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Trade blocked!")
+                return
             response = requests.post(
                 f"{self.api_url}/trade",
                 json={
@@ -295,6 +311,9 @@ class TradingApp:
 
     def auto_trade_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Auto-trade blocked!")
+                return
             response = requests.get(f"{self.api_url}/predict/{self.pair_combobox.get()}")
             response.raise_for_status()
             rl_confidence = response.json()["confidence"]
@@ -307,6 +326,9 @@ class TradingApp:
 
     def refresh_portfolio(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Refresh blocked!")
+                return
             response = requests.get(f"{self.api_url}/portfolio")
             response.raise_for_status()
             data = response.json()
@@ -326,6 +348,9 @@ class TradingApp:
 
     def train_model(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Training blocked!")
+                return
             response = requests.post(f"{self.api_url}/train")
             response.raise_for_status()
             messagebox.showinfo("Success", f"Neural-Net retrained: {response.json()['status']}")
@@ -334,6 +359,9 @@ class TradingApp:
 
     def toggle_testnet(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Testnet toggle blocked!")
+                return
             response = requests.post(
                 f"{self.api_url}/testnet",
                 json={"testnet": self.testnet_var.get()}
@@ -345,6 +373,9 @@ class TradingApp:
 
     def scan_arbitrage(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Arbitrage scan blocked!")
+                return
             response = requests.get(f"{self.api_url}/arbitrage")
             response.raise_for_status()
             opportunities = response.json()["opportunities"]
@@ -355,6 +386,9 @@ class TradingApp:
 
     def check_regime(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Regime check blocked!")
+                return
             response = requests.get(f"{self.api_url}/market_regime")
             response.raise_for_status()
             regime = response.json()["regime"]
@@ -365,6 +399,9 @@ class TradingApp:
 
     def view_sentiment(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Sentiment view blocked!")
+                return
             response = requests.get(f"{self.api_url}/market/{self.pair_combobox.get()}")
             sentiment = requests.get(f"{self.api_url}/sentiment/{self.pair_combobox.get()}").json()
             self.dashboard_text.delete(1.0, tk.END)
@@ -374,6 +411,9 @@ class TradingApp:
 
     def view_onchain(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - On-chain view blocked!")
+                return
             metrics = requests.get(f"{self.api_url}/onchain/{self.pair_combobox.get()}").json()
             self.dashboard_text.delete(1.0, tk.END)
             self.dashboard_text.insert(tk.END, f"On-Chain Metrics: {metrics}\n")
@@ -382,6 +422,9 @@ class TradingApp:
 
     def run_backtest(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Backtest blocked!")
+                return
             response = requests.post(
                 f"{self.api_url}/backtest",
                 json={
@@ -405,34 +448,58 @@ class TradingApp:
             messagebox.showerror("Error", f"Backtest flatlined: {e}")
 
     def generate_tax_report(self):
-        country = simpledialog.askstring("Tax Report", "Enter country (e.g., US, Germany):")
-        if country:
-            report = tax_reporter.generate_report(country)
-            if report:
-                messagebox.showinfo("Success", f"Tax report saved as {report} - Check your rig, Choom!")
+        try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Tax report blocked!")
+                return
+            country = simpledialog.askstring("Tax Report", "Enter country (e.g., US, Germany):")
+            if country:
+                report = tax_reporter.generate_report(country)
+                if report:
+                    messagebox.showinfo("Success", f"Tax report saved as {report} - Check your rig, Choom!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Tax report flatlined: {e}")
 
     def withdraw_reserves(self):
-        reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")
-        total = reserves[0][0] or 0
-        if total > 0:
-            db.execute_query("DELETE FROM reserves")
-            messagebox.showinfo("Success", f"Withdrew {total} Eddies from reserves - Tax man’s paid!")
-        else:
-            messagebox.showinfo("Info", "No creds reserved, Choom - Stack more Eddies!")
+        try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Withdraw blocked!")
+                return
+            reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")
+            total = reserves[0][0] or 0
+            if total > 0:
+                db.execute_query("DELETE FROM reserves")
+                messagebox.showinfo("Success", f"Withdrew {total} Eddies from reserves - Tax man’s paid!")
+            else:
+                messagebox.showinfo("Info", "No creds reserved, Choom - Stack more Eddies!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Withdraw flatlined: {e}")
 
     def update_tax_rates(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Tax update blocked!")
+                return
             tax_reporter.update_tax_rates()
             messagebox.showinfo("Success", "Tax rates updated from the Net - Arasaka can’t touch ‘em!")
         except Exception as e:
             messagebox.showerror("Error", f"Tax rate update flatlined: {e}")
 
     def toggle_idle_conversion(self):
-        self.auto_idle_conversion.set(not self.auto_idle_conversion.get())
-        messagebox.showinfo("Info", f"Auto Idle Conversion {'enabled' if self.auto_idle_conversion.get() else 'disabled'} - Switching to {'USDT' if self.auto_idle_conversion.get() else 'active pair'}")
+        try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Idle toggle blocked!")
+                return
+            self.auto_idle_conversion.set(not self.auto_idle_conversion.get())
+            messagebox.showinfo("Info", f"Auto Idle Conversion {'enabled' if self.auto_idle_conversion.get() else 'disabled'} - Switching to {'USDT' if self.auto_idle_conversion.get() else 'active pair'}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Idle toggle flatlined: {e}")
 
     def convert_idle_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Idle conversion blocked!")
+                return
             asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
             messagebox.showinfo("Success", f"Converted idle funds to {self.idle_target.get()} - Arasaka’s outta the game!")
         except Exception as e:
@@ -440,6 +507,9 @@ class TradingApp:
 
     def rebalance_portfolio(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Rebalance blocked!")
+                return
             risk_manager.rebalance_trades()
             messagebox.showinfo("Success", "Portfolio rebalanced - Eddies optimized!")
         except Exception as e:
@@ -447,6 +517,9 @@ class TradingApp:
 
     def preload_data_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Data preload blocked!")
+                return
             response = requests.post(f"{self.api_url}/preload_data")
             response.raise_for_status()
             messagebox.showinfo("Success", "Data preloaded - Net’s fresh!")
@@ -455,6 +528,9 @@ class TradingApp:
 
     def check_health_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Health check blocked!")
+                return
             portfolio_value = db.get_portfolio_value()
             daily_pnl = sum(t[0] * t[1] * (-1 if t[2] == "sell" else 1) for t in db.fetch_all("SELECT amount, price, side FROM trades WHERE timestamp >= date('now', 'start of day')"))
             if daily_pnl < -0.05 * portfolio_value or float(self.leverage_entry.get()) > 2.0:
@@ -466,6 +542,9 @@ class TradingApp:
 
     def backup_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Backup blocked!")
+                return
             db_path = settings.DATABASE_URL.replace("sqlite:///", "")
             backup_path = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             shutil.copy2(db_path, backup_path)
@@ -476,6 +555,9 @@ class TradingApp:
 
     def adjust_regime_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Regime adjust blocked!")
+                return
             regime = asyncio.run(self.bot.detect_market_regime())
             if regime == "bear":
                 risk_manager.max_leverage = min(risk_manager.max_leverage, 1.0)
@@ -487,6 +569,9 @@ class TradingApp:
 
     def optimize_fees_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Fee optimize blocked!")
+                return
             book = asyncio.run(self.bot.fetcher.fetch_order_book(self.pair_combobox.get()))
             spread = book["asks"][0][0] - book["bids"][0][0]
             if spread > 0.001:
@@ -499,6 +584,9 @@ class TradingApp:
 
     def rotate_pairs_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Pair rotation blocked!")
+                return
             pairs = asyncio.run(pair_selector.auto_rotate_pairs())
             self.pair_combobox["values"] = pairs
             self.pair_combobox.set(pairs[0])
@@ -508,6 +596,9 @@ class TradingApp:
 
     def add_pair_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Add pair blocked!")
+                return
             pair = simpledialog.askstring("Add Pair", "Enter new pair (e.g., ETH/USDT):")
             if pair and pair not in self.pair_combobox["values"]:
                 self.pair_combobox["values"] = list(self.pair_combobox["values"]) + [pair]
@@ -517,6 +608,9 @@ class TradingApp:
 
     def remove_pair_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Remove pair blocked!")
+                return
             pair = self.pair_combobox.get()
             if pair in self.pair_combobox["values"]:
                 values = list(self.pair_combobox["values"])
@@ -528,6 +622,9 @@ class TradingApp:
 
     def hedge_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Hedge blocked!")
+                return
             risk_manager.auto_hedge()
             messagebox.showinfo("Success", "Risk hedged - Arasaka’s moves blocked!")
         except Exception as e:
@@ -535,6 +632,9 @@ class TradingApp:
 
     def trade_trend_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Trend trade blocked!")
+                return
             asyncio.run(sentiment_analyzer.auto_exploit_trends())
             messagebox.showinfo("Success", "Traded on social trends - Eddies stacked!")
         except Exception as e:
@@ -542,6 +642,9 @@ class TradingApp:
 
     def mine_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Mining blocked!")
+                return
             asyncio.run(liquidity_miner.auto_mine_liquidity())
             messagebox.showinfo("Success", "Liquidity mined - Passive Eddies flowing!")
         except Exception as e:
@@ -549,6 +652,9 @@ class TradingApp:
 
     def analyze_now(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Analysis blocked!")
+                return
             asyncio.run(performance_analyzer.auto_analyze_performance())
             messagebox.showinfo("Success", "Performance analyzed - AI’s got your back, Choom!")
         except Exception as e:
@@ -556,6 +662,9 @@ class TradingApp:
 
     def save_defi_settings(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - DeFi save blocked!")
+                return
             rpc_url = self.rpc_url_entry.get()
             pancake_address = self.pancake_address_entry.get()
             abi = self.abi_entry.get()
@@ -567,24 +676,42 @@ class TradingApp:
 
     def load_defi_settings(self):
         try:
-            liquidity_miner.load_config()
-            if liquidity_miner.rpc_url:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - DeFi load blocked!")
+                return
+            config = liquidity_miner.load_config()
+            if config["rpc_url"]:
                 self.rpc_url_entry.delete(0, tk.END)
-                self.rpc_url_entry.insert(0, liquidity_miner.rpc_url)
+                self.rpc_url_entry.insert(0, config["rpc_url"])
                 self.pancake_address_entry.delete(0, tk.END)
-                self.pancake_address_entry.insert(0, liquidity_miner.pancake_swap_address)
+                self.pancake_address_entry.insert(0, config["pancake_swap_address"])
                 self.abi_entry.delete(0, tk.END)
-                self.abi_entry.insert(0, liquidity_miner.abi)
+                self.abi_entry.insert(0, config["abi"])
                 self.private_key_entry.delete(0, tk.END)
-                self.private_key_entry.insert(0, "*" * len(liquidity_miner.private_key) if liquidity_miner.private_key else "")
+                self.private_key_entry.insert(0, "*" * len(config["private_key"]) if config["private_key"] else "")
                 messagebox.showinfo("Success", "DeFi settings loaded - Check entries!")
         except Exception as e:
             messagebox.showerror("Error", f"DeFi settings load flatlined: {e}")
 
+    def login(self):
+        try:
+            if security_manager.verify_pin(self.pin_var.get()):
+                self.notebook.select(self.trading_frame)
+                messagebox.showinfo("Success", "Login successful - Militech-grade access granted!")
+            else:
+                messagebox.showerror("Error", "Invalid PIN - Access denied by Militech protocols!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Login flatlined: {e}")
+
     def emergency_stop(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Emergency stop blocked!")
+                return
+            security_manager.emergency_lock()
             self.loop.run_until_complete(kill_switch.activate())
-            messagebox.showinfo("Emergency", "All systems halted by Arasaka Kill Switch")
+            messagebox.showinfo("Emergency", "All systems halted and wiped by Militech Kill Switch - Arasaka’s toast!")
+            self.root.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"Kill Switch flatlined: {e}")
 
