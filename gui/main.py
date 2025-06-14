@@ -9,6 +9,9 @@ from config.settings import settings
 from emergency.kill_switch import kill_switch
 from utils.tax_reporter import tax_reporter
 from trading.trading_bot import TradingBot
+from market.pair_selector import pair_selector
+from trading.liquidity_mining import liquidity_miner
+from trading.analyze_performance import performance_analyzer
 import time
 import shutil
 import os
@@ -45,6 +48,11 @@ class TradingApp:
         self.auto_backup = tk.BooleanVar(value=True)
         self.auto_regime_adjust = tk.BooleanVar(value=True)
         self.auto_fee_optimize = tk.BooleanVar(value=True)
+        self.auto_pair_rotation = tk.BooleanVar(value=True)
+        self.auto_risk_hedging = tk.BooleanVar(value=True)
+        self.auto_social_trend = tk.BooleanVar(value=True)
+        self.auto_liquidity_mining = tk.BooleanVar(value=True)
+        self.auto_performance_analytics = tk.BooleanVar(value=True)
         self.last_tax_update = 0
         self.last_rebalance = 0
         self.last_idle_check = 0
@@ -58,6 +66,11 @@ class TradingApp:
         self.last_backup = 0
         self.last_regime_adjust = 0
         self.last_fee_optimize = 0
+        self.last_pair_rotation = 0
+        self.last_risk_hedging = 0
+        self.last_social_trend = 0
+        self.last_liquidity_mining = 0
+        self.last_performance_analytics = 0
 
         # Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
@@ -135,6 +148,18 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="Adjust Regime Now", command=self.adjust_regime_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Checkbutton(self.dashboard_frame, text="Auto Fee Optimize (Hourly)", variable=self.auto_fee_optimize, style="Cyber.TCheckbutton").pack()
         tk.Button(self.dashboard_frame, text="Optimize Fees Now", command=self.optimize_fees_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Pair Rotation (Daily)", variable=self.auto_pair_rotation, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Rotate Pairs Now", command=self.rotate_pairs_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Add Pair Now", command=self.add_pair_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Remove Pair Now", command=self.remove_pair_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Risk Hedging (Hourly)", variable=self.auto_risk_hedging, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Hedge Now", command=self.hedge_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Social Trend (Daily)", variable=self.auto_social_trend, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Trade Trend Now", command=self.trade_trend_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Liquidity Mining (Weekly)", variable=self.auto_liquidity_mining, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Mine Now", command=self.mine_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Performance Analytics (Daily)", variable=self.auto_performance_analytics, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Analyze Now", command=self.analyze_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
@@ -196,6 +221,21 @@ class TradingApp:
         if self.auto_fee_optimize.get() and current_time - self.last_fee_optimize > 3600:  # Hourly
             self.optimize_fees_now()
             self.last_fee_optimize = current_time
+        if self.auto_pair_rotation.get() and current_time - self.last_pair_rotation > 24 * 3600:  # Daily
+            self.rotate_pairs_now()
+            self.last_pair_rotation = current_time
+        if self.auto_risk_hedging.get() and current_time - self.last_risk_hedging > 3600:  # Hourly
+            risk_manager.auto_hedge()
+            self.last_risk_hedging = current_time
+        if self.auto_social_trend.get() and current_time - self.last_social_trend > 24 * 3600:  # Daily
+            asyncio.run(sentiment_analyzer.auto_exploit_trends())
+            self.last_social_trend = current_time
+        if self.auto_liquidity_mining.get() and current_time - self.last_liquidity_mining > 7 * 24 * 3600:  # Weekly
+            asyncio.run(liquidity_miner.auto_mine_liquidity())
+            self.last_liquidity_mining = current_time
+        if self.auto_performance_analytics.get() and current_time - self.last_performance_analytics > 24 * 3600:  # Daily
+            asyncio.run(performance_analyzer.auto_analyze_performance())
+            self.last_performance_analytics = current_time
         self.root.after(3600000, self.schedule_automation)  # Check hourly
 
     def update_pair_list(self):
@@ -459,6 +499,63 @@ class TradingApp:
                 messagebox.showinfo("Info", "Spread too tight - Keeping taker fees")
         except Exception as e:
             messagebox.showerror("Error", f"Fee optimization flatlined: {e}")
+
+    def rotate_pairs_now(self):
+        try:
+            pairs = asyncio.run(pair_selector.auto_rotate_pairs())
+            self.pair_combobox["values"] = pairs
+            self.pair_combobox.set(pairs[0])
+            messagebox.showinfo("Success", f"Pairs rotated: {pairs}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Pair rotation flatlined: {e}")
+
+    def add_pair_now(self):
+        try:
+            pair = simpledialog.askstring("Add Pair", "Enter new pair (e.g., ETH/USDT):")
+            if pair and pair not in self.pair_combobox["values"]:
+                self.pair_combobox["values"] = list(self.pair_combobox["values"]) + [pair]
+                messagebox.showinfo("Success", f"Added pair: {pair}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Add pair flatlined: {e}")
+
+    def remove_pair_now(self):
+        try:
+            pair = self.pair_combobox.get()
+            if pair in self.pair_combobox["values"]:
+                values = list(self.pair_combobox["values"])
+                values.remove(pair)
+                self.pair_combobox["values"] = values
+                messagebox.showinfo("Success", f"Removed pair: {pair}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Remove pair flatlined: {e}")
+
+    def hedge_now(self):
+        try:
+            risk_manager.auto_hedge()
+            messagebox.showinfo("Success", "Risk hedged - Arasaka’s moves blocked!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Hedge flatlined: {e}")
+
+    def trade_trend_now(self):
+        try:
+            asyncio.run(sentiment_analyzer.auto_exploit_trends())
+            messagebox.showinfo("Success", "Traded on social trends - Eddies stacked!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Trend trade flatlined: {e}")
+
+    def mine_now(self):
+        try:
+            asyncio.run(liquidity_miner.auto_mine_liquidity())
+            messagebox.showinfo("Success", "Liquidity mined - Passive Eddies flowing!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Mining flatlined: {e}")
+
+    def analyze_now(self):
+        try:
+            asyncio.run(performance_analyzer.auto_analyze_performance())
+            messagebox.showinfo("Success", "Performance analyzed - AI’s got your back, Choom!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Analysis flatlined: {e}")
 
     def emergency_stop(self):
         try:
