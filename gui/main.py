@@ -3,7 +3,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import requests
 import asyncio
-import aiohttp
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from config.settings import settings
 from emergency.kill_switch import kill_switch
 
@@ -22,42 +23,70 @@ class TradingApp:
         neon_style.configure("Cyber.TLabel", background="#0a0a23", foreground="#00ffcc")
         neon_style.configure("Cyber.TCheckbutton", background="#0a0a23", foreground="#00ffcc")
 
-        # GUI Elements
-        tk.Label(root, text="Trading Pair (Choom's Choice)", style="Cyber.TLabel").pack()
-        self.pair_combobox = ttk.Combobox(root, style="Cyber.TCombobox")
+        # Notebook for Tabs
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True)
+
+        # Trading Tab
+        self.trading_frame = tk.Frame(self.notebook, bg="#0a0a23")
+        self.notebook.add(self.trading_frame, text="Trading Matrix")
+
+        # Dashboard Tab
+        self.dashboard_frame = tk.Frame(self.notebook, bg="#0a0a23")
+        self.notebook.add(self.dashboard_frame, text="Netrunner's Dashboard")
+
+        # Trading Tab Elements
+        tk.Label(self.trading_frame, text="Trading Pair (Choom's Choice)", style="Cyber.TLabel").pack()
+        self.pair_combobox = ttk.Combobox(self.trading_frame, style="Cyber.TCombobox")
         self.pair_combobox.pack()
 
-        tk.Label(root, text="Amount (Eddies)", style="Cyber.TLabel").pack()
-        self.amount_entry = tk.Entry(root, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        tk.Label(self.trading_frame, text="Amount (Eddies)", style="Cyber.TLabel").pack()
+        self.amount_entry = tk.Entry(self.trading_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
         self.amount_entry.insert(0, str(settings.TRADING["amount"]))
         self.amount_entry.pack()
 
-        tk.Label(root, text="Risk Profile (Arasaka Protocols)", style="Cyber.TLabel").pack()
-        self.risk_combobox = ttk.Combobox(root, values=["conservative", "moderate", "aggressive"], style="Cyber.TCombobox")
+        tk.Label(self.trading_frame, text="Risk Profile (Arasaka Protocols)", style="Cyber.TLabel").pack()
+        self.risk_combobox = ttk.Combobox(self.trading_frame, values=["conservative", "moderate", "aggressive"], style="Cyber.TCombobox")
         self.risk_combobox.set("moderate")
         self.risk_combobox.pack()
 
-        tk.Label(root, text="Testnet Mode (Safe Net)", style="Cyber.TLabel").pack()
+        tk.Label(self.trading_frame, text="Leverage (Max 3x)", style="Cyber.TLabel").pack()
+        self.leverage_entry = tk.Entry(self.trading_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        self.leverage_entry.insert(0, "1.0")
+        self.leverage_entry.pack()
+
+        tk.Label(self.trading_frame, text="Testnet Mode (Safe Net)", style="Cyber.TLabel").pack()
         self.testnet_var = tk.BooleanVar(value=settings.TESTNET)
-        tk.Checkbutton(root, text="Enable Testnet", variable=self.testnet_var, command=self.toggle_testnet, style="Cyber.TCheckbutton").pack()
+        tk.Checkbutton(self.trading_frame, text="Enable Testnet", variable=self.testnet_var, command=self.toggle_testnet, style="Cyber.TCheckbutton").pack()
 
-        tk.Button(root, text="Scan Optimal Pair", command=self.select_best_pair, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Buy (Stack Eddies)", command=self.buy, bg="#00ffcc", fg="#0a0a23").pack()
-        tk.Button(root, text="Sell (Cash Out)", command=self.sell, bg="#00ffcc", fg="#0a0a23").pack()
-        tk.Button(root, text="Refresh Netrunner's Portfolio", command=self.refresh_portfolio, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Train Neural-Net", command=self.train_model, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Run Arbitrage Scan", command=self.scan_arbitrage, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Check Market Regime", command=self.check_regime, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Backtest Strategy", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(root, text="Emergency Kill Switch", command=self.emergency_stop, bg="#ff0000", fg="#ffffff").pack()
+        tk.Button(self.trading_frame, text="Scan Optimal Pair", command=self.select_best_pair, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Buy (Stack Eddies)", command=self.buy, bg="#00ffcc", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Sell (Cash Out)", command=self.sell, bg="#00ffcc", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Refresh Portfolio", command=self.refresh_portfolio, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Train Neural-Net", command=self.train_model, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.trading_frame, text="Emergency Kill Switch", command=self.emergency_stop, bg="#ff0000", fg="#ffffff").pack()
 
-        self.portfolio_text = tk.Text(root, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
+        self.portfolio_text = tk.Text(self.trading_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
         self.portfolio_text.pack()
 
-        self.status_label = tk.Label(root, text="Status: Idle in the Net", style="Cyber.TLabel")
+        # Dashboard Tab Elements
+        tk.Button(self.dashboard_frame, text="Run Arbitrage Scan", command=self.scan_arbitrage, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Check Market Regime", command=self.check_regime, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="View Sentiment", command=self.view_sentiment, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="View On-Chain Metrics", command=self.view_onchain, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Run Backtest", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
+
+        self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
+        self.dashboard_text.pack()
+
+        # Backtest Plot
+        self.fig, self.ax = plt.subplots(figsize=(5, 3))
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.dashboard_frame)
+        self.canvas.get_tk_widget().pack()
+
+        self.status_label = tk.Label(self.trading_frame, text="Status: Idle in the Net", style="Cyber.TLabel")
         self.status_label.pack()
 
-        # Populate pairs
         self.update_pair_list()
         self.update_status()
 
@@ -66,10 +95,10 @@ class TradingApp:
             response = requests.get(f"{self.api_url}/best_pair")
             response.raise_for_status()
             pair = response.json()["pair"]
-            self.pair_combobox["values"] = [pair] + settings.TRADING.get("pairs", [])
+            self.pair_combobox["values"] = [pair]
             self.pair_combobox.set(pair)
         except:
-            self.pair_combobox["values"] = settings.TRADING.get("pairs", [])
+            self.pair_combobox["values"] = [settings.TRADING["symbol"]]
 
     def update_status(self):
         try:
@@ -104,7 +133,8 @@ class TradingApp:
                     "symbol": self.pair_combobox.get(),
                     "side": side,
                     "amount": float(self.amount_entry.get()),
-                    "risk_profile": self.risk_combobox.get()
+                    "risk_profile": self.risk_combobox.get(),
+                    "leverage": float(self.leverage_entry.get())
                 }
             )
             response.raise_for_status()
@@ -130,7 +160,7 @@ class TradingApp:
         try:
             response = requests.post(f"{self.api_url}/train")
             response.raise_for_status()
-            messagebox.showinfo("Success", f"Neural-Net retrained for {response.json()['status']}")
+            messagebox.showinfo("Success", f"Neural-Net retrained: {response.json()['status']}")
         except Exception as e:
             messagebox.showerror("Error", f"Training failed: {e}")
 
@@ -150,7 +180,8 @@ class TradingApp:
             response = requests.get(f"{self.api_url}/arbitrage")
             response.raise_for_status()
             opportunities = response.json()["opportunities"]
-            messagebox.showinfo("Arbitrage Scan", f"Found {len(opportunities)} opportunities: {opportunities}")
+            self.dashboard_text.delete(1.0, tk.END)
+            self.dashboard_text.insert(tk.END, f"Arbitrage: {opportunities}\n")
         except Exception as e:
             messagebox.showerror("Error", f"Arbitrage scan failed: {e}")
 
@@ -159,9 +190,27 @@ class TradingApp:
             response = requests.get(f"{self.api_url}/market_regime")
             response.raise_for_status()
             regime = response.json()["regime"]
-            messagebox.showinfo("Market Regime", f"Current regime: {regime}")
+            self.dashboard_text.delete(1.0, tk.END)
+            self.dashboard_text.insert(tk.END, f"Market Regime: {regime}\n")
         except Exception as e:
             messagebox.showerror("Error", f"Regime detection failed: {e}")
+
+    def view_sentiment(self):
+        try:
+            response = requests.get(f"{self.api_url}/market/{self.pair_combobox.get()}")
+            sentiment = requests.get(f"{self.api_url}/sentiment/{self.pair_combobox.get()}").json()
+            self.dashboard_text.delete(1.0, tk.END)
+            self.dashboard_text.insert(tk.END, f"Sentiment Score: {sentiment['score']}\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"Sentiment fetch failed: {e}")
+
+    def view_onchain(self):
+        try:
+            metrics = requests.get(f"{self.api_url}/onchain/{self.pair_combobox.get()}").json()
+            self.dashboard_text.delete(1.0, tk.END)
+            self.dashboard_text.insert(tk.END, f"On-Chain Metrics: {metrics}\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"On-Chain fetch failed: {e}")
 
     def run_backtest(self):
         try:
@@ -170,14 +219,20 @@ class TradingApp:
                 json={
                     "symbol": self.pair_combobox.get(),
                     "timeframe": settings.TRADING["timeframe"],
-                    "start_date": "2020-01-01",
+                    "start_date": "2015-01-01",
                     "end_date": "2025-06-01",
                     "strategy": "breakout"
                 }
             )
             response.raise_for_status()
             result = response.json()["result"]
-            messagebox.showinfo("Backtest", f"Backtest result: {result}")
+            self.ax.clear()
+            self.ax.plot(result["equity_curve"], color="#00ffcc")
+            self.ax.set_facecolor("#1a1a3d")
+            self.fig.patch.set_facecolor("#0a0a23")
+            self.canvas.draw()
+            self.dashboard_text.delete(1.0, tk.END)
+            self.dashboard_text.insert(tk.END, f"Backtest: Sharpe={result['sharpe_ratio']}, Return={result['total_return']}\n")
         except Exception as e:
             messagebox.showerror("Error", f"Backtest failed: {e}")
 
