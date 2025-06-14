@@ -33,6 +33,9 @@ class PairSelector:
                         ticker = await ex.fetch_ticker(pair)
                         book = await fetcher.fetch_order_book(pair, exchange=ex_name)
                         volume = ticker["quoteVolume"]
+                        # Calculate volume spike
+                        prev_volume = await ex.fetch_ticker(pair, params={"timeframe": timeframe, "limit": 2})["quoteVolume"]
+                        volume_spike = (volume / prev_volume - 1) if prev_volume > 0 else 0
                         spread = (ticker["ask"] - ticker["bid"]) / ticker["bid"]
                         volatility = np.std([d[4] for d in data]) / np.mean([d[4] for d in data])
                         liquidity = sum(b[1] for b in book["bids"][:5]) + sum(a[1] for a in book["asks"][:5])
@@ -43,8 +46,8 @@ class PairSelector:
                             continue
                         prediction = trainer.predict(data[-1])
                         rl_score = rl_trainer.predict(data[-1])
-                        score = (prediction + rl_score) * volume * volatility * liquidity / (spread + 1e-6)
-                        logger.info(f"Evaluated {ex_name}:{pair}: Score={score}")
+                        score = (prediction + rl_score) * volume * volatility * liquidity * (1 + volume_spike) / (spread + 1e-6)
+                        logger.info(f"Evaluated {ex_name}:{pair}: Score={score}, VolumeSpike={volume_spike}")
                         if score > best_score:
                             best_score = score
                             best_pair = f"{ex_name}:{pair}"
@@ -81,7 +84,6 @@ class PairSelector:
                                         "sell_exchange": ex2,
                                         "profit": profit
                                     })
-                    # Triangular arbitrage within Binance
                     binance = self.exchanges["binance"]
                     await binance.load_markets()
                     pairs = [p for p in binance.markets.keys() if p.endswith("/USDT")]
