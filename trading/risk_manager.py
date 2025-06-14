@@ -11,6 +11,7 @@ class RiskManager:
     def __init__(self):
         self.risk_profile = "moderate"
         self.set_risk_profile(self.risk_profile)
+        self.flash_drop_threshold = 0.10  # Default 10% drop
 
     def set_risk_profile(self, profile):
         self.risk_profile = profile
@@ -160,25 +161,38 @@ class RiskManager:
                     amount = abs(diff_value) / current_price
                     asyncio.run(bot.execute_trade(symbol, "sell", amount))
             logger.info("Portfolio rebalanced: New weights jacked in - Arasaka’s outta luck!")
-
-        def auto_hedge(self):
-            try:
-                data = db.fetch_all("SELECT symbol FROM positions")
-                for symbol in [row[0] for row in data]:
-                    market_data = db.fetch_all("SELECT high, low, close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 14", (symbol,))
-                    if market_data:
-                        df = pd.DataFrame(market_data, columns=["high", "low", "close"])
-                        atr = ((df["high"] - df["low"]).max() + (df["high"] - df["close"].shift()).abs().max() + (df["low"] - df["close"].shift()).abs().max()) / 3
-                        if atr > 0.02:  # 2% volatility threshold
-                            hedge_symbol, hedge_amount = self.calculate_hedge(symbol, db.fetch_one("SELECT amount FROM positions WHERE symbol = ?", (symbol,))[0])
-                            if hedge_symbol:
-                                asyncio.run(bot.execute_trade(hedge_symbol, "buy" if side == "sell" else "sell", hedge_amount))
-                logger.info("Auto-hedged high-volatility pairs - Arasaka’s moves blocked!")
-            except Exception as e:
-                logger.error(f"Auto-hedge flatlined: {e}")
-
         except Exception as e:
             logger.error(f"Rebalance flatlined: {e}")
+
+    def auto_hedge(self):
+        try:
+            data = db.fetch_all("SELECT symbol FROM positions")
+            for symbol in [row[0] for row in data]:
+                market_data = db.fetch_all("SELECT high, low, close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 14", (symbol,))
+                if market_data:
+                    df = pd.DataFrame(market_data, columns=["high", "low", "close"])
+                    atr = ((df["high"] - df["low"]).max() + (df["high"] - df["close"].shift()).abs().max() + (df["low"] - df["close"].shift()).abs().max()) / 3
+                    if atr > self.flash_drop_threshold:  # Use configurable threshold
+                        hedge_symbol, hedge_amount = self.calculate_hedge(symbol, db.fetch_one("SELECT amount FROM positions WHERE symbol = ?", (symbol,))[0])
+                        if hedge_symbol:
+                            asyncio.run(bot.execute_trade(hedge_symbol, "buy" if side == "sell" else "sell", hedge_amount))
+            logger.info("Auto-hedged high-volatility pairs - Arasaka’s moves blocked!")
+        except Exception as e:
+            logger.error(f"Auto-hedge flatlined: {e}")
+
+    def flash_crash_protection(self):
+        try:
+            data = db.fetch_all("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 5", (settings.TRADING["symbol"],))
+            if len(data) == 5:
+                prices = [d[0] for d in data]
+                drop = (prices[0] - prices[-1]) / prices[-1]
+                if drop > self.flash_drop_threshold:  # Use configurable threshold
+                    positions = db.fetch_all("SELECT id, symbol, amount FROM positions WHERE side = 'buy'")
+                    for pos in positions:
+                        asyncio.run(bot.execute_trade(pos[1], "sell", pos[2]))
+                    logger.info("Flash crash detected - Positions exited, Eddies saved!")
+        except Exception as e:
+            logger.error(f"Flash crash protection flatlined: {e}")
 
     def calculate_hedge(self, symbol, amount):
         try:
