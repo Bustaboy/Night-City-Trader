@@ -34,6 +34,7 @@ class TradingApp:
         neon_style.configure("Cyber.TLabel", background="#0a0a23", foreground="#00ffcc")
         neon_style.configure("Cyber.TCheckbutton", background="#0a0a23", foreground="#00ffcc")
         neon_style.configure("Cyber.TCombobox", background="#0a0a23", foreground="#00ffcc", fieldbackground="#1a1a3d")
+        neon_style.configure("Cyber.TScale", background="#0a0a23", foreground="#00ffcc", troughcolor="#1a1a3d")
 
         # Automation Vars
         self.auto_tax_update = tk.BooleanVar(value=True)
@@ -55,6 +56,7 @@ class TradingApp:
         self.auto_social_trend = tk.BooleanVar(value=True)
         self.auto_liquidity_mining = tk.BooleanVar(value=True)
         self.auto_performance_analytics = tk.BooleanVar(value=True)
+        self.auto_flash_protection = tk.BooleanVar(value=True)
         self.last_tax_update = 0
         self.last_rebalance = 0
         self.last_idle_check = 0
@@ -73,6 +75,7 @@ class TradingApp:
         self.last_social_trend = 0
         self.last_liquidity_mining = 0
         self.last_performance_analytics = 0
+        self.last_flash_protection = 0
 
         # Security Vars
         self.pin_var = tk.StringVar()
@@ -113,6 +116,22 @@ class TradingApp:
         self.private_key_entry.pack()
         tk.Button(self.defi_frame, text="Save DeFi Settings", command=self.save_defi_settings, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.defi_frame, text="Load DeFi Settings", command=self.load_defi_settings, bg="#ff00ff", fg="#0a0a23").pack()
+
+        # Settings Hub Tab
+        self.settings_frame = tk.Frame(self.notebook, bg="#0a0a23")
+        self.notebook.add(self.settings_frame, text="Settings Hub")
+        tk.Label(self.settings_frame, text="Risk Profile", style="Cyber.TLabel").pack()
+        self.risk_setting = ttk.Combobox(self.settings_frame, values=["conservative", "moderate", "aggressive"], style="Cyber.TCombobox")
+        self.risk_setting.set("moderate")
+        self.risk_setting.pack()
+        tk.Label(self.settings_frame, text="Max Leverage", style="Cyber.TLabel").pack()
+        self.leverage_setting = tk.Entry(self.settings_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        self.leverage_setting.insert(0, "3.0")
+        self.leverage_setting.pack()
+        tk.Label(self.settings_frame, text="Flash Drop Threshold (%)", style="Cyber.TLabel").pack()
+        self.flash_drop_scale = ttk.Scale(self.settings_frame, from_=5, to=20, orient=tk.HORIZONTAL, length=200, value=10, style="Cyber.TScale")
+        self.flash_drop_scale.pack()
+        tk.Button(self.settings_frame, text="Save Settings", command=self.save_settings, bg="#ff00ff", fg="#0a0a23").pack()
 
         # Trading Tab Elements
         tk.Checkbutton(self.trading_frame, text="Auto Trade (RL > 0.8)", variable=self.auto_trade, style="Cyber.TCheckbutton").pack()
@@ -167,6 +186,8 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="Mine Now", command=self.mine_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Checkbutton(self.dashboard_frame, text="Auto Performance Analytics (Daily)", variable=self.auto_performance_analytics, style="Cyber.TCheckbutton").pack()
         tk.Button(self.dashboard_frame, text="Analyze Now", command=self.analyze_now, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Flash Crash Protection (Hourly)", variable=self.auto_flash_protection, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Protect Now", command=self.protect_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
@@ -246,10 +267,16 @@ class TradingApp:
         if self.auto_performance_analytics.get() and current_time - self.last_performance_analytics > 24 * 3600:  # Daily
             asyncio.run(performance_analyzer.auto_analyze_performance())
             self.last_performance_analytics = current_time
+        if self.auto_flash_protection.get() and current_time - self.last_flash_protection > 3600:  # Hourly
+            self.protect_now()
+            self.last_flash_protection = current_time
         self.root.after(3600000, self.schedule_automation)  # Check hourly
 
     def update_pair_list(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Pair update blocked!")
+                return
             response = requests.get(f"{self.api_url}/best_pair")
             response.raise_for_status()
             pair = response.json()["pair"]
@@ -269,6 +296,9 @@ class TradingApp:
 
     def select_best_pair(self):
         try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Pair selection blocked!")
+                return
             response = requests.get(f"{self.api_url}/best_pair")
             response.raise_for_status()
             pair = response.json()["pair"]
@@ -702,6 +732,28 @@ class TradingApp:
                 messagebox.showerror("Error", "Invalid PIN - Access denied by Militech protocols!")
         except Exception as e:
             messagebox.showerror("Error", f"Login flatlined: {e}")
+
+    def save_settings(self):
+        try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Settings save blocked!")
+                return
+            settings.TRADING["risk"]["default"]["max_leverage"] = float(self.leverage_setting.get())
+            risk_manager.set_risk_profile(self.risk_setting.get())
+            risk_manager.flash_drop_threshold = self.flash_drop_scale.get() / 100  # Convert to decimal
+            messagebox.showinfo("Success", "Settings saved - Matrix tuned to your style, Choom!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Settings save flatlined: {e}")
+
+    def protect_now(self):
+        try:
+            if not security_manager.check_tamper():
+                messagebox.showerror("Security", "Tamper detected - Protection blocked!")
+                return
+            risk_manager.flash_crash_protection()
+            messagebox.showinfo("Success", "Flash crash protection activated - Eddies secured!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Protection flatlined: {e}")
 
     def emergency_stop(self):
         try:
