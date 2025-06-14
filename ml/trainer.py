@@ -6,6 +6,7 @@ import xgboost as xgb
 from config.settings import settings
 from market.data_fetcher import DataFetcher
 import joblib
+from utils.logger import logger
 
 class MLTrainer:
     def __init__(self):
@@ -26,7 +27,7 @@ class MLTrainer:
     def prepare_data(self, data):
         df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df = self.calculate_indicators(df)
-        df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)  # 1 for buy, 0 for sell
+        df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
         df = df.dropna()
         X = df[self.features]
         y = df["target"]
@@ -38,14 +39,21 @@ class MLTrainer:
         model = xgb.XGBClassifier(n_estimators=100, learning_rate=0.1)
         model.fit(X, y)
         joblib.dump(model, self.model_path)
+        logger.info(f"Model saved to {self.model_path}")
         return model
 
     def predict(self, data):
-        model = joblib.load(self.model_path)
-        df = pd.DataFrame([data], columns=["timestamp", "open", "high", "low", "close", "volume"])
-        df = self.calculate_indicators(df)
-        X = df[self.features]
-        X_scaled = self.scaler.transform(X)
-        return model.predict(X_scaled)[0]  # 1 for buy, 0 for sell
+        try:
+            model = joblib.load(self.model_path)
+            df = pd.DataFrame([data], columns=["timestamp", "open", "high", "low", "close", "volume"])
+            df = self.calculate_indicators(df)
+            X = df[self.features]
+            X_scaled = self.scaler.transform(X)
+            prediction = model.predict(X_scaled)[0]
+            logger.info(f"Prediction made: {prediction}")
+            return prediction
+        except FileNotFoundError:
+            logger.error("Model not found; please train first")
+            raise Exception("Model not found")
 
 trainer = MLTrainer()
