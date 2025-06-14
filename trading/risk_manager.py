@@ -16,36 +16,40 @@ class RiskManager:
         self.max_daily_loss = settings.TRADING["risk"][profile]["max_daily_loss"]
         self.stop_loss = settings.TRADING["risk"][profile]["stop_loss"]
         self.take_profit = settings.TRADING["risk"][profile]["take_profit"]
-        logger.info(f"Arasaka Risk Protocols set to: {profile}")
+        self.max_leverage = settings.TRADING["risk"][profile]["max_leverage"]
+        logger.info(f"Arasaka Risk Protocols: {profile}")
 
-    def check_profitability(self, symbol, side, amount):
+    def check_profitability(self, symbol, side, amount, leverage=1.0):
         try:
             market_data = db.fetch_one(
                 "SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
                 (symbol,)
             )
             if not market_data:
-                logger.warning("No market data for profitability check")
+                logger.warning("No market data")
                 return False
             price = market_data[0]
             fee_rate = settings.TRADING["fees"]["taker"]
-            fee = amount * price * fee_rate
-            expected_profit = amount * price * self.take_profit
+            fee = amount * price * fee_rate * leverage
+            expected_profit = amount * price * self.take_profit * leverage
             if expected_profit <= fee:
-                logger.warning(f"Trade rejected: Expected profit {expected_profit} <= fee {fee}")
+                logger.warning(f"Trade rejected: Profit {expected_profit} <= fee {fee}")
                 return False
             return True
         except Exception as e:
-            logger.error(f"Profitability check failed: {e}")
+            logger.error(f"Profitability failed: {e}")
             return False
 
-    def check_trade_risk(self, symbol, side, amount):
+    def check_trade_risk(self, symbol, side, amount, leverage=1.0):
         try:
+            if leverage > self.max_leverage:
+                logger.warning(f"Trade rejected: Leverage {leverage} exceeds {self.max_leverage}")
+                return False
             total_position = db.fetch_one(
                 "SELECT SUM(amount) FROM positions WHERE symbol = ?", (symbol,)
             )[0] or 0
             portfolio_value = 100  # Placeholder
-            if amount > self.max_position_size * portfolio_value:
+            if amount * leverage > self.max_position_size * portfolio_value:
                 logger.warning(f"Trade rejected: Position size exceeds {self.max_position_size}")
                 return False
             trades_today = db.fetch_all(
@@ -69,10 +73,10 @@ class RiskManager:
             returns = np.diff([d[0] for d in data]) / [d[0] for d in data][:-1]
             volatility = np.std(returns)
             kelly_fraction = (np.mean(returns) / volatility**2) if volatility > 0 else 0.1
-            kelly_fraction = min(max(kelly_fraction, 0.01), 0.5)  # Limit to 1-50%
-            portfolio_value = 100  # Placeholder
+            kelly_fraction = min(max(kelly_fraction, 0.01), 0.5)
+            portfolio_value = 100
             adjusted = kelly_fraction * portfolio_value * self.max_position_size
-            logger.info(f"Adjusted position size for {symbol}: {adjusted} Eddies")
+            logger.info(f"Adjusted size for {symbol}: {adjusted} Eddies")
             return min(amount, adjusted)
         except Exception as e:
             logger.error(f"Position sizing failed: {e}")
@@ -99,13 +103,44 @@ class RiskManager:
             def objective(weights):
                 port_return = np.sum(returns.mean(axis=1) * weights) * 252
                 port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
-                return -port_return / port_vol  # Maximize Sharpe ratio
+                return -port_return / port_vol
             constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1}
             bounds = [(0, 1) for _ in range(len(symbols))]
             result = minimize(objective, np.ones(len(symbols)) / len(symbols), bounds=bounds, constraints=constraints)
             weights = {s: w for s, w in zip(symbols, result.x)}
             logger.info(f"Portfolio optimized: {weights}")
             return weights
+
+    def calculate_hedge(self, symbol, amount):
+        try:
+            data = db.fetch_all(
+                "SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 252",
+                (symbol,)
+            )
+            returns = np.diff([d[0] for d in data]) / [d[0] for d in data][:-1]
+            correlations = {}
+            for other_symbol in db.fetch_all("SELECT DISTINCT symbol FROM historical_data"):
+                other_symbol = other_symbol[0]
+                if other_symbol == symbol:
+                    continue
+                other_data = db.fetch_all(
+                    "SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 252",
+                    (other_symbol,)
+                )
+                if len(other_data) < 252:
+                    continue
+                other_returns = np.diff([d[0] for d in other_data]) / [d[0] for d in other_data][:-1]
+                corr = np.corrcoef(returns, other_returns)[0, 1]
+                correlations[other_symbol] = corr
+            if correlations:
+                hedge_symbol = max(correlations, key=lambda x: abs(correlations[x]))
+                hedge_ratio = -correlations[hedge_symbol]
+                hedge_amount = amount * abs(hedge_ratio)
+                logger.info(f"Hedge for {symbol}: {hedge_amount} {hedge_symbol}")
+                return hedge_symbol, hedge_amount
+            return None, 0
         except Exception as e:
-            logger.error(f"Portfolio optimization failed: {e}")
-            return {}
+            logger.error(f"Hedge calculation failed: {e}")
+            return None, 0
+
+risk_manager = RiskManager()
