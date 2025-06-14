@@ -1,22 +1,57 @@
-# requirements.txt
+# Core Dependencies
 fastapi==0.115.0
 uvicorn==0.30.6
-ccxt==4.3.1
-pandas==2.2.2
-numpy==1.26.4
-xgboost==2.1.1
-joblib==1.4.2
-scikit-learn==1.5.1
 python-dotenv==1.0.1
 pyyaml==6.0.2
+
+# Exchange Connectivity
+ccxt==4.3.1
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.14.1
+
+# Machine Learning
+scikit-learn==1.5.1
+xgboost==2.1.1
+joblib==1.4.2
+
+# Deep Learning
+tensorflow==2.17.0
+
+# Technical Analysis
+TA-Lib==0.4.32  # Requires system-level TA-Lib installation
+
+# Database
+# sqlite3 is included in Python standard library
+
+# GUI
+tkinter  # Usually included with Python
+matplotlib==3.9.2
+
+# Web Scraping (for sentiment/tax rates)
 requests==2.32.3
+beautifulsoup4==4.12.2
+
+# Twitter/X API
+tweepy==4.14.0
+
+# Blockchain/DeFi
+web3==6.20.3
+
+# Security
+cryptography==42.0.7
+
+# Logging
+# logging is included in Python standard library
+
+# Testing
 pytest==8.3.2
 pytest-asyncio==0.24.0
+
+# Packaging (optional, for creating executables)
 pyinstaller==6.10.0
-tensorflow==2.17.0
-scipy==1.14.1
-matplotlib==3.9.2
-beautifulsoup4==4.12.2
-web3==6.0.0  # For liquidity mining
-sklearn-genetic==0.5.1  # For AI analytics
-cryptography==42.0.7  # Add for AES-256
+
+# Additional ML Tools (optional)
+sklearn-genetic-opt==0.5.1  # For genetic algorithm optimization
