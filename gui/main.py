@@ -8,6 +8,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from config.settings import settings
 from emergency.kill_switch import kill_switch
 from utils.tax_reporter import tax_reporter
+from trading.trading_bot import TradingBot
 
 class TradingApp:
     def __init__(self, root):
@@ -15,6 +16,7 @@ class TradingApp:
         self.root.title("Arasaka Neural-Net Trading Matrix")
         self.api_url = f"http://{settings.API_HOST}:{settings.API_PORT}"
         self.loop = asyncio.get_event_loop()
+        self.bot = TradingBot()
 
         # Cyberpunk Theme
         self.root.configure(bg="#0a0a23")
@@ -78,6 +80,8 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="Run Backtest", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Withdraw Reserves", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Update Tax Rates", command=self.update_tax_rates, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.dashboard_frame, text="Toggle Idle Conversion", command=self.toggle_idle_conversion, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
         self.dashboard_text.pack()
@@ -90,6 +94,7 @@ class TradingApp:
         self.status_label = tk.Label(self.trading_frame, text="Status: Idle in the Net", style="Cyber.TLabel")
         self.status_label.pack()
 
+        self.idle_conversion_var = tk.BooleanVar(value=False)
         self.update_pair_list()
         self.update_status()
 
@@ -142,10 +147,12 @@ class TradingApp:
             )
             response.raise_for_status()
             trade_data = response.json()
-            profit = (trade_data["price"] - float(self.amount_entry.get())) * float(self.amount_entry.get()) - trade_data["fee"]
+            profit = (trade_data["price"] - float(self.amount_entry.get())) * float(self.amount_entry.get()) - trade_data["fee"] if side == "buy" else (float(self.amount_entry.get()) - trade_data["price"]) * float(self.amount_entry.get()) - trade_data["fee"]
             if profit > 0:
                 risk_manager.reserve_creds(trade_data["trade_id"], profit)
             messagebox.showinfo("Success", f"Trade executed: {trade_data['status']}")
+            if self.idle_conversion_var.get():
+                asyncio.run(self.bot.convert_idle_funds())
         except Exception as e:
             messagebox.showerror("Error", f"Trade flatlined: {e}")
 
@@ -260,6 +267,17 @@ class TradingApp:
             messagebox.showinfo("Success", f"Withdrew {total} Eddies from reserves - Tax man’s paid!")
         else:
             messagebox.showinfo("Info", "No creds reserved, Choom - Stack more Eddies!")
+
+    def update_tax_rates(self):
+        try:
+            tax_reporter.update_tax_rates()
+            messagebox.showinfo("Success", "Tax rates updated from the Net - Arasaka can’t touch ‘em!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Tax rate update flatlined: {e}")
+
+    def toggle_idle_conversion(self):
+        self.idle_conversion_var.set(not self.idle_conversion_var.get())
+        messagebox.showinfo("Info", f"Idle Conversion {'enabled' if self.idle_conversion_var.get() else 'disabled'} - Switching to {'USDT' if self.idle_conversion_var.get() else 'active pair'}")
 
     def emergency_stop(self):
         try:
