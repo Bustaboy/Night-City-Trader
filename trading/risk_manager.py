@@ -82,6 +82,21 @@ class RiskManager:
             logger.error(f"Position sizing failed: {e}")
             return amount
 
+    def adjust_leverage(self, symbol, prediction_confidence, market_regime):
+        try:
+            base_leverage = self.max_leverage
+            if market_regime == "bear":
+                leverage = min(1.0, base_leverage)
+            elif prediction_confidence > 0.8:
+                leverage = min(base_leverage, 3.0)
+            else:
+                leverage = min(base_leverage, 1.5)
+            logger.info(f"Adjusted leverage for {symbol}: {leverage}x")
+            return leverage
+        except Exception as e:
+            logger.error(f"Leverage adjustment failed: {e}")
+            return 1.0
+
     def optimize_portfolio(self):
         try:
             symbols = db.fetch_all("SELECT DISTINCT symbol FROM positions")
