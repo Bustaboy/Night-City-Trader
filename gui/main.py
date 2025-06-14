@@ -15,6 +15,7 @@ from trading.analyze_performance import performance_analyzer
 import time
 import shutil
 import os
+import json
 
 class TradingApp:
     def __init__(self, root):
@@ -84,30 +85,25 @@ class TradingApp:
         self.dashboard_frame = tk.Frame(self.notebook, bg="#0a0a23")
         self.notebook.add(self.dashboard_frame, text="Netrunner's Dashboard")
 
+        # DeFi Settings Tab
+        self.defi_frame = tk.Frame(self.notebook, bg="#0a0a23")
+        self.notebook.add(self.defi_frame, text="DeFi Settings")
+        tk.Label(self.defi_frame, text="RPC URL", style="Cyber.TLabel").pack()
+        self.rpc_url_entry = tk.Entry(self.defi_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        self.rpc_url_entry.pack()
+        tk.Label(self.defi_frame, text="PancakeSwap Address", style="Cyber.TLabel").pack()
+        self.pancake_address_entry = tk.Entry(self.defi_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        self.pancake_address_entry.pack()
+        tk.Label(self.defi_frame, text="ABI", style="Cyber.TLabel").pack()
+        self.abi_entry = tk.Entry(self.defi_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
+        self.abi_entry.pack()
+        tk.Label(self.defi_frame, text="Private Key", style="Cyber.TLabel").pack()
+        self.private_key_entry = tk.Entry(self.defi_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff", show="*")
+        self.private_key_entry.pack()
+        tk.Button(self.defi_frame, text="Save DeFi Settings", command=self.save_defi_settings, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Button(self.defi_frame, text="Load DeFi Settings", command=self.load_defi_settings, bg="#ff00ff", fg="#0a0a23").pack()
+
         # Trading Tab Elements
-        tk.Label(self.trading_frame, text="Trading Pair (Choom's Choice)", style="Cyber.TLabel").pack()
-        self.pair_combobox = ttk.Combobox(self.trading_frame, style="Cyber.TCombobox")
-        self.pair_combobox.pack()
-
-        tk.Label(self.trading_frame, text="Amount (Eddies)", style="Cyber.TLabel").pack()
-        self.amount_entry = tk.Entry(self.trading_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
-        self.amount_entry.insert(0, str(settings.TRADING["amount"]))
-        self.amount_entry.pack()
-
-        tk.Label(self.trading_frame, text="Risk Profile (Arasaka Protocols)", style="Cyber.TLabel").pack()
-        self.risk_combobox = ttk.Combobox(self.trading_frame, values=["conservative", "moderate", "aggressive"], style="Cyber.TCombobox")
-        self.risk_combobox.set("moderate")
-        self.risk_combobox.pack()
-
-        tk.Label(self.trading_frame, text="Leverage (Max 3x)", style="Cyber.TLabel").pack()
-        self.leverage_entry = tk.Entry(self.trading_frame, bg="#1a1a3d", fg="#00ffcc", insertbackground="#ff00ff")
-        self.leverage_entry.insert(0, "1.0")
-        self.leverage_entry.pack()
-
-        tk.Label(self.trading_frame, text="Testnet Mode (Safe Net)", style="Cyber.TLabel").pack()
-        self.testnet_var = tk.BooleanVar(value=settings.TESTNET)
-        tk.Checkbutton(self.trading_frame, text="Enable Testnet", variable=self.testnet_var, command=self.toggle_testnet, style="Cyber.TCheckbutton").pack()
-
         tk.Checkbutton(self.trading_frame, text="Auto Trade (RL > 0.8)", variable=self.auto_trade, style="Cyber.TCheckbutton").pack()
         tk.Button(self.trading_frame, text="Buy Now (Stack Eddies)", command=lambda: self.execute_trade("buy"), bg="#00ffcc", fg="#0a0a23").pack()
         tk.Button(self.trading_frame, text="Sell Now (Cash Out)", command=lambda: self.execute_trade("sell"), bg="#00ffcc", fg="#0a0a23").pack()
@@ -173,6 +169,7 @@ class TradingApp:
         self.status_label = tk.Label(self.trading_frame, text="Status: Idle in the Net", style="Cyber.TLabel")
         self.status_label.pack()
 
+        self.load_defi_settings()  # Load on startup
         self.update_pair_list()
         self.update_status()
         self.schedule_automation()
@@ -556,6 +553,33 @@ class TradingApp:
             messagebox.showinfo("Success", "Performance analyzed - AI’s got your back, Choom!")
         except Exception as e:
             messagebox.showerror("Error", f"Analysis flatlined: {e}")
+
+    def save_defi_settings(self):
+        try:
+            rpc_url = self.rpc_url_entry.get()
+            pancake_address = self.pancake_address_entry.get()
+            abi = self.abi_entry.get()
+            private_key = self.private_key_entry.get()
+            liquidity_miner.save_config(rpc_url, pancake_address, abi, private_key)
+            messagebox.showinfo("Success", "DeFi settings saved - Ready to mine, Choom!")
+        except Exception as e:
+            messagebox.showerror("Error", f"DeFi settings save flatlined: {e}")
+
+    def load_defi_settings(self):
+        try:
+            liquidity_miner.load_config()
+            if liquidity_miner.rpc_url:
+                self.rpc_url_entry.delete(0, tk.END)
+                self.rpc_url_entry.insert(0, liquidity_miner.rpc_url)
+                self.pancake_address_entry.delete(0, tk.END)
+                self.pancake_address_entry.insert(0, liquidity_miner.pancake_swap_address)
+                self.abi_entry.delete(0, tk.END)
+                self.abi_entry.insert(0, liquidity_miner.abi)
+                self.private_key_entry.delete(0, tk.END)
+                self.private_key_entry.insert(0, "*" * len(liquidity_miner.private_key) if liquidity_miner.private_key else "")
+                messagebox.showinfo("Success", "DeFi settings loaded - Check entries!")
+        except Exception as e:
+            messagebox.showerror("Error", f"DeFi settings load flatlined: {e}")
 
     def emergency_stop(self):
         try:
