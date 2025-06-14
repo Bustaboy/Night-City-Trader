@@ -12,6 +12,7 @@ class Settings:
     BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
     BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
     TESTNET = os.getenv("TESTNET", "true").lower() == "true"
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
     with open("config/config.yaml", "r") as f:
         config = yaml.safe_load(f)
