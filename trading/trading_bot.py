@@ -45,9 +45,14 @@ class TradingBot:
                 data = await self.fetcher.fetch_ohlcv(pair, tf, limit=100, exchange=ex_name)
                 signal = self.strategies.get_signal(pair, data, timeframe=tf)
                 signals.append(signal)
-            combined_signal = np.mean(signals)  # Weighted average
+            combined_signal = np.mean(signals)
             ml_prediction = self.trainer.predict(data[-1])
             rl_action = self.rl_trainer.predict(data[-1])
+            rl_confidence = np.max(self.rl_trainer.model.predict(np.array(data[-1][1:]).reshape(1, -1), verbose=0))
+
+            # Adjust leverage dynamically
+            market_regime = await self.detect_market_regime()
+            leverage = self.risk_manager.adjust_leverage(symbol, rl_confidence, market_regime)
 
             # Check seasonality
             seasonality = db.fetch_one(
@@ -76,15 +81,16 @@ class TradingBot:
                         order = await self.exchange.create_market_order(pair, side, order_amount)
                     executed_amount += order_amount
                     orders.append(order)
-                    book = await self.fetcher.fetch_order_book(pair, exchange=ex_name)  # Refresh book
+                    book = await self.fetcher.fetch_order_book(pair, exchange=ex_name)
                 
                 trade_id = str(uuid.uuid4())
                 avg_price = np.mean([o["price"] for o in orders])
                 fee = sum(o["cost"] * fee_rate for o in orders)
                 
-                # Set stop-loss and take-profit
-                sl_price = avg_price * (1 - self.risk_manager.stop_loss) if side == "buy" else avg_price * (1 + self.risk_manager.stop_loss)
-                tp_price = avg_price * (1 + self.risk_manager.take_profit) if side == "buy" else avg_price * (1 - self.risk_manager.take_profit)
+                # Adaptive SL/TP based on ATR
+                atr = self.calculate_atr(data)
+                sl_price = avg_price * (1 - 1.5 * atr / avg_price) if side == "buy" else avg_price * (1 + 1.5 * atr / avg_price)
+                tp_price = avg_price * (1 + 3.0 * atr / avg_price) if side == "buy" else avg_price * (1 - 3.0 * atr / avg_price)
                 oco_params = {
                     "stopPrice": sl_price,
                     "stopLimitPrice": sl_price,
@@ -127,9 +133,18 @@ class TradingBot:
             logger.error(f"Trade execution failed: {e}")
             raise
 
+    def calculate_atr(self, data):
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        high_low = df["high"] - df["low"]
+        high_close = np.abs(df["high"] - df["close"].shift())
+        low_close = np.abs(df["low"] - df["close"].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        return true_range.rolling(14).mean().iloc[-1]
+
     def can_use_maker_order(self, book, side):
         spread = book["asks"][0][0] - book["bids"][0][0]
-        return spread > 0.001  # Use maker if spread is wide
+        return spread > 0.001
 
     async def detect_market_regime(self):
         try:
