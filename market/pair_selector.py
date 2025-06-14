@@ -6,6 +6,7 @@ from config.settings import settings
 from ml.trainer import trainer
 from ml.rl_trainer import rl_trainer
 from utils.logger import logger
+from core.database import db
 
 class PairSelector:
     def __init__(self):
@@ -33,7 +34,6 @@ class PairSelector:
                         ticker = await ex.fetch_ticker(pair)
                         book = await fetcher.fetch_order_book(pair, exchange=ex_name)
                         volume = ticker["quoteVolume"]
-                        # Calculate volume spike
                         prev_volume = await ex.fetch_ticker(pair, params={"timeframe": timeframe, "limit": 2})["quoteVolume"]
                         volume_spike = (volume / prev_volume - 1) if prev_volume > 0 else 0
                         spread = (ticker["ask"] - ticker["bid"]) / ticker["bid"]
@@ -59,8 +59,34 @@ class PairSelector:
             logger.warning("No suitable pair found")
             return f"binance:{settings.TRADING['symbol']}"
         except Exception as e:
-            logger.error(f"Pair selection failed: {e}")
+            logger.error(f"Pair selection flatlined: {e}")
             return f"binance:{settings.TRADING['symbol']}"
+
+    async def auto_rotate_pairs(self):
+        try:
+            await self.exchange.load_markets()
+            pairs = [p for p in self.exchange.markets.keys() if p.endswith("/USDT")]
+            profitable_pairs = {}
+            trades = db.fetch_all("SELECT symbol, SUM((price * amount) - fee) as profit FROM trades GROUP BY symbol")
+            for trade in trades:
+                profit = trade[1] or 0
+                if profit > 0.01 * db.get_portfolio_value():  # >1% profit
+                    profitable_pairs[trade[0]] = profit
+                elif profit < -0.01 * db.get_portfolio_value():  # <-1% loss
+                    if trade[0] in profitable_pairs:
+                        del profitable_pairs[trade[0]]
+            for pair in pairs:
+                if pair not in profitable_pairs:
+                    data = await fetcher.fetch_ohlcv(pair, "1h", limit=100)
+                    profit = sum((d[4] - d[1]) * 0.001 for d in data) / 100  # Rough profit estimate
+                    if profit > 0.01 * db.get_portfolio_value():
+                        profitable_pairs[pair] = profit
+            top_pairs = list(profitable_pairs.keys())[:10]  # Top 10 profitable pairs
+            logger.info(f"Auto-rotated pairs: {top_pairs}")
+            return top_pairs
+        except Exception as e:
+            logger.error(f"Pair rotation flatlined: {e}")
+            return [settings.TRADING["symbol"]]
 
     async def detect_arbitrage(self):
         try:
@@ -106,7 +132,7 @@ class PairSelector:
             logger.info(f"Arbitrage scan: {len(opportunities)} opportunities")
             return opportunities
         except Exception as e:
-            logger.error(f"Arbitrage detection failed: {e}")
+            logger.error(f"Arbitrage detection flatlined: {e}")
             return []
 
     def set_sandbox_mode(self, enabled):
