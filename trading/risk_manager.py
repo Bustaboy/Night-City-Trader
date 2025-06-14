@@ -5,6 +5,7 @@ from utils.logger import logger
 import numpy as np
 from scipy.optimize import minimize
 from datetime import datetime
+from trading.trading_bot import bot
 
 class RiskManager:
     def __init__(self):
@@ -47,8 +48,15 @@ class RiskManager:
                 logger.warning(f"Trade rejected: Leverage {leverage} exceeds {self.max_leverage}")
                 return False
             portfolio_value = db.get_portfolio_value()
-            if amount * leverage > self.max_position_size * portfolio_value:
-                logger.warning(f"Trade rejected: Position size exceeds {self.max_position_size * portfolio_value}")
+            max_size = self.max_position_size * portfolio_value
+            if portfolio_value <= 1000:
+                max_size *= 1.0  # 1% for small portfolios
+            elif portfolio_value <= 10000:
+                max_size *= 0.75  # 0.75% for mid-tier
+            else:
+                max_size *= 0.5  # 0.5% for large portfolios
+            if amount * leverage > max_size:
+                logger.warning(f"Trade rejected: Position size exceeds {max_size}")
                 return False
             trades_today = db.fetch_all(
                 "SELECT amount, price FROM trades WHERE timestamp >= date('now', 'start of day')"
@@ -57,6 +65,8 @@ class RiskManager:
             if daily_pnl < -self.max_daily_loss * portfolio_value:
                 logger.warning(f"Trade rejected: Daily loss exceeds {self.max_daily_loss * portfolio_value}")
                 return False
+            if portfolio_value > 50000:
+                leverage = min(leverage, 1.5)  # Cap leverage at $50,000
             return True
         except Exception as e:
             logger.error(f"Risk check flatlined: {e}")
@@ -74,6 +84,12 @@ class RiskManager:
             kelly_fraction = (np.mean(returns) / volatility**2) if volatility > 0 else 0.1
             kelly_fraction = min(max(kelly_fraction, 0.01), 0.5)
             max_size = self.max_position_size * portfolio_value
+            if portfolio_value <= 1000:
+                max_size *= 1.0
+            elif portfolio_value <= 10000:
+                max_size *= 0.75
+            else:
+                max_size *= 0.5
             adjusted = kelly_fraction * max_size
             logger.info(f"Adjusted size for {symbol}: {adjusted} Eddies based on {portfolio_value} portfolio")
             return min(amount, adjusted)
@@ -91,6 +107,8 @@ class RiskManager:
                 leverage = min(base_leverage, 3.0)
             else:
                 leverage = min(base_leverage, 1.5)
+            if portfolio_value > 50000:
+                leverage = min(leverage, 1.5)  # Cap at $50,000
             logger.info(f"Adjusted leverage for {symbol}: {leverage}x based on {portfolio_value} Eddies")
             return leverage
         except Exception as e:
@@ -135,13 +153,30 @@ class RiskManager:
                 current_price = db.fetch_one("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1", (symbol,))[0]
                 target_value = portfolio_value * weight
                 diff_value = target_value - (current * current_price)
-                if diff_value > 0:
+                if diff_value > 10:  # Min $10 threshold
                     amount = diff_value / current_price
                     asyncio.run(bot.execute_trade(symbol, "buy", amount))
-                elif diff_value < 0:
+                elif diff_value < -10:
                     amount = abs(diff_value) / current_price
                     asyncio.run(bot.execute_trade(symbol, "sell", amount))
-            logger.info("Portfolio rebalanced: New weights jacked in")
+            logger.info("Portfolio rebalanced: New weights jacked in - Arasaka’s outta luck!")
+
+        def auto_hedge(self):
+            try:
+                data = db.fetch_all("SELECT symbol FROM positions")
+                for symbol in [row[0] for row in data]:
+                    market_data = db.fetch_all("SELECT high, low, close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 14", (symbol,))
+                    if market_data:
+                        df = pd.DataFrame(market_data, columns=["high", "low", "close"])
+                        atr = ((df["high"] - df["low"]).max() + (df["high"] - df["close"].shift()).abs().max() + (df["low"] - df["close"].shift()).abs().max()) / 3
+                        if atr > 0.02:  # 2% volatility threshold
+                            hedge_symbol, hedge_amount = self.calculate_hedge(symbol, db.fetch_one("SELECT amount FROM positions WHERE symbol = ?", (symbol,))[0])
+                            if hedge_symbol:
+                                asyncio.run(bot.execute_trade(hedge_symbol, "buy" if side == "sell" else "sell", hedge_amount))
+                logger.info("Auto-hedged high-volatility pairs - Arasaka’s moves blocked!")
+            except Exception as e:
+                logger.error(f"Auto-hedge flatlined: {e}")
+
         except Exception as e:
             logger.error(f"Rebalance flatlined: {e}")
 
