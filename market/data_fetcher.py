@@ -3,6 +3,7 @@ import ccxt.async_support as ccxt
 import pandas as pd
 import numpy as np
 from config.settings import settings
+from core.database import db
 from utils.logger import logger
 
 class DataFetcher:
@@ -14,11 +15,24 @@ class DataFetcher:
         })
         if settings.TESTNET:
             self.exchange.set_sandbox_mode(True)
+        self.preload_historical_data()
+
+    async def preload_historical_data(self):
+        try:
+            await self.exchange.load_markets()
+            pairs = list(self.exchange.markets.keys())
+            for symbol in pairs[:10]:  # Limit to 10 for demo; remove for full preload
+                data = await self.fetch_historical_data(symbol, settings.TRADING["timeframe"], settings.ML["historical_data_years"])
+                db.store_historical_data(symbol, data)
+                logger.info(f"Preloaded historical data for {symbol}")
+        except Exception as e:
+            logger.error(f"Preloading historical data failed: {e}")
 
     async def fetch_ohlcv(self, symbol, timeframe, limit=100, since=None):
         try:
             await self.exchange.load_markets()
             ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=limit)
+            db.store_historical_data(symbol, ohlcv)
             logger.info(f"Fetched {len(ohlcv)} OHLCV records for {symbol}")
             return ohlcv
         except Exception as e:
