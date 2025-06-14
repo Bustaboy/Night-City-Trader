@@ -9,6 +9,7 @@ from config.settings import settings
 from emergency.kill_switch import kill_switch
 from utils.tax_reporter import tax_reporter
 from trading.trading_bot import TradingBot
+import time
 
 class TradingApp:
     def __init__(self, root):
@@ -25,6 +26,15 @@ class TradingApp:
         neon_style.configure("Cyber.TButton", background="#0a0a23", foreground="#ff00ff")
         neon_style.configure("Cyber.TLabel", background="#0a0a23", foreground="#00ffcc")
         neon_style.configure("Cyber.TCheckbutton", background="#0a0a23", foreground="#00ffcc")
+        neon_style.configure("Cyber.TCombobox", background="#0a0a23", foreground="#00ffcc", fieldbackground="#1a1a3d")
+
+        # Automation Vars
+        self.auto_tax_update = tk.BooleanVar(value=True)
+        self.auto_rebalance = tk.BooleanVar(value=True)
+        self.auto_idle_conversion = tk.BooleanVar(value=True)
+        self.last_tax_update = 0
+        self.last_rebalance = 0
+        self.last_idle_check = 0
 
         # Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
@@ -73,6 +83,15 @@ class TradingApp:
         self.portfolio_text.pack()
 
         # Dashboard Tab Elements
+        tk.Checkbutton(self.dashboard_frame, text="Auto Update Tax Rates (Weekly)", variable=self.auto_tax_update, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Update Tax Rates Now", command=self.update_tax_rates, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Rebalance (Weekly)", variable=self.auto_rebalance, style="Cyber.TCheckbutton").pack()
+        tk.Button(self.dashboard_frame, text="Rebalance Portfolio Now", command=self.rebalance_portfolio, bg="#ff00ff", fg="#0a0a23").pack()
+        tk.Checkbutton(self.dashboard_frame, text="Auto Idle Conversion (Daily)", variable=self.auto_idle_conversion, style="Cyber.TCheckbutton").pack()
+        self.idle_target = ttk.Combobox(self.dashboard_frame, values=["USDT", "BTC"], style="Cyber.TCombobox")
+        self.idle_target.set("USDT")
+        self.idle_target.pack()
+        tk.Button(self.dashboard_frame, text="Convert Idle Funds Now", command=self.convert_idle_now, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Run Arbitrage Scan", command=self.scan_arbitrage, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Check Market Regime", command=self.check_regime, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="View Sentiment", command=self.view_sentiment, bg="#ff00ff", fg="#0a0a23").pack()
@@ -80,8 +99,6 @@ class TradingApp:
         tk.Button(self.dashboard_frame, text="Run Backtest", command=self.run_backtest, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Generate Tax Report", command=self.generate_tax_report, bg="#ff00ff", fg="#0a0a23").pack()
         tk.Button(self.dashboard_frame, text="Withdraw Reserves", command=self.withdraw_reserves, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Update Tax Rates", command=self.update_tax_rates, bg="#ff00ff", fg="#0a0a23").pack()
-        tk.Button(self.dashboard_frame, text="Toggle Idle Conversion", command=self.toggle_idle_conversion, bg="#ff00ff", fg="#0a0a23").pack()
 
         self.dashboard_text = tk.Text(self.dashboard_frame, height=10, width=50, bg="#1a1a3d", fg="#00ffcc")
         self.dashboard_text.pack()
@@ -97,6 +114,20 @@ class TradingApp:
         self.idle_conversion_var = tk.BooleanVar(value=False)
         self.update_pair_list()
         self.update_status()
+        self.schedule_automation()
+
+    def schedule_automation(self):
+        current_time = time.time()
+        if self.auto_tax_update.get() and current_time - self.last_tax_update > 7 * 24 * 3600:  # Weekly
+            self.update_tax_rates()
+            self.last_tax_update = current_time
+        if self.auto_rebalance.get() and current_time - self.last_rebalance > 7 * 24 * 3600:  # Weekly
+            self.rebalance_portfolio()
+            self.last_rebalance = current_time
+        if self.auto_idle_conversion.get() and current_time - self.last_idle_check > 24 * 3600:  # Daily
+            asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
+            self.last_idle_check = current_time
+        self.root.after(3600000, self.schedule_automation)  # Check hourly
 
     def update_pair_list(self):
         try:
@@ -151,8 +182,8 @@ class TradingApp:
             if profit > 0:
                 risk_manager.reserve_creds(trade_data["trade_id"], profit)
             messagebox.showinfo("Success", f"Trade executed: {trade_data['status']}")
-            if self.idle_conversion_var.get():
-                asyncio.run(self.bot.convert_idle_funds())
+            if self.auto_idle_conversion.get():
+                asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
         except Exception as e:
             messagebox.showerror("Error", f"Trade flatlined: {e}")
 
@@ -169,6 +200,9 @@ class TradingApp:
             reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")[0][0] or 0
             self.portfolio_text.insert(tk.END, f"Reserved Creds: {reserves} Eddies\n")
             self.portfolio_text.insert(tk.END, f"Optimized Weights: {data['optimized_weights']}\n")
+            last_rebalance = db.fetch_one("SELECT timestamp FROM trades WHERE side = 'rebalance' ORDER BY timestamp DESC LIMIT 1")
+            if last_rebalance and (datetime.now() - datetime.fromisoformat(last_rebalance[0])) > timedelta(days=7) and self.auto_rebalance.get():
+                self.rebalance_portfolio()
         except Exception as e:
             messagebox.showerror("Error", f"Portfolio refresh flatlined: {e}")
 
@@ -276,8 +310,22 @@ class TradingApp:
             messagebox.showerror("Error", f"Tax rate update flatlined: {e}")
 
     def toggle_idle_conversion(self):
-        self.idle_conversion_var.set(not self.idle_conversion_var.get())
-        messagebox.showinfo("Info", f"Idle Conversion {'enabled' if self.idle_conversion_var.get() else 'disabled'} - Switching to {'USDT' if self.idle_conversion_var.get() else 'active pair'}")
+        self.auto_idle_conversion.set(not self.auto_idle_conversion.get())
+        messagebox.showinfo("Info", f"Auto Idle Conversion {'enabled' if self.auto_idle_conversion.get() else 'disabled'} - Switching to {'USDT' if self.auto_idle_conversion.get() else 'active pair'}")
+
+    def convert_idle_now(self):
+        try:
+            asyncio.run(self.bot.convert_idle_funds(self.idle_target.get()))
+            messagebox.showinfo("Success", f"Converted idle funds to {self.idle_target.get()} - Arasaka’s outta the game!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Manual conversion flatlined: {e}")
+
+    def rebalance_portfolio(self):
+        try:
+            risk_manager.rebalance_trades()
+            messagebox.showinfo("Success", "Portfolio rebalanced - Eddies optimized!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Rebalance flatlined: {e}")
 
     def emergency_stop(self):
         try:
