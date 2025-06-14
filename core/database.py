@@ -6,9 +6,44 @@ class DatabaseManager:
     def __init__(self):
         self.conn = sqlite3.connect(settings.DATABASE_URL, check_same_thread=False)
         self.cursor = self.conn.cursor()
-        self.init_historical_data()
+        self.init_tables()
 
-    def init_historical_data(self):
+    def init_tables(self):
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id TEXT PRIMARY KEY,
+                symbol TEXT,
+                side TEXT,
+                amount REAL,
+                price REAL,
+                fee REAL,
+                leverage REAL,
+                timestamp TEXT
+            )
+        """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS positions (
+                id TEXT PRIMARY KEY,
+                symbol TEXT,
+                side TEXT,
+                amount REAL,
+                entry_price REAL,
+                stop_loss REAL,
+                take_profit REAL,
+                timestamp TEXT
+            )
+        """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS market_data (
+                symbol TEXT,
+                timestamp INTEGER,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL,
+                volume REAL
+            )
+        """)
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS historical_data (
                 symbol TEXT,
@@ -24,7 +59,16 @@ class DatabaseManager:
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS market_regimes (
                 timestamp INTEGER PRIMARY KEY,
-                regime TEXT  # bull, bear, altcoin
+                regime TEXT
+            )
+        """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS seasonality_patterns (
+                symbol TEXT,
+                period TEXT,
+                mean_return REAL,
+                volatility REAL,
+                PRIMARY KEY (symbol, period)
             )
         """)
 
@@ -44,11 +88,22 @@ class DatabaseManager:
         for row in data:
             self.execute_query(
                 """
-                INSERT OR REPLACE INTO historical_data (symbol, timestamp, open, high, low, close, volume)
+                INSERT OR REPLACE INTO historical_data
+                (symbol, timestamp, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (symbol, row[0], row[1], row[2], row[3], row[4], row[5])
             )
+
+    def store_seasonality_pattern(self, symbol, period, mean_return, volatility):
+        self.execute_query(
+            """
+            INSERT OR REPLACE INTO seasonality_patterns
+            (symbol, period, mean_return, volatility)
+            VALUES (?, ?, ?, ?)
+            """,
+            (symbol, period, mean_return, volatility)
+        )
 
     def close(self):
         self.conn.close()
