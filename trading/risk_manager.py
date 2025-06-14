@@ -4,6 +4,7 @@ from core.database import db
 from utils.logger import logger
 import numpy as np
 from scipy.optimize import minimize
+from datetime import datetime
 
 class RiskManager:
     def __init__(self):
@@ -17,7 +18,7 @@ class RiskManager:
         self.stop_loss = settings.TRADING["risk"][profile]["stop_loss"]
         self.take_profit = settings.TRADING["risk"][profile]["take_profit"]
         self.max_leverage = settings.TRADING["risk"][profile]["max_leverage"]
-        logger.info(f"Arasaka Risk Protocols: {profile}")
+        logger.info(f"Arasaka Risk Protocols locked: {profile}")
 
     def check_profitability(self, symbol, side, amount, leverage=1.0):
         try:
@@ -26,7 +27,7 @@ class RiskManager:
                 (symbol,)
             )
             if not market_data:
-                logger.warning("No market data")
+                logger.warning("No market data in the Net")
                 return False
             price = market_data[0]
             fee_rate = settings.TRADING["fees"]["taker"]
@@ -37,7 +38,7 @@ class RiskManager:
                 return False
             return True
         except Exception as e:
-            logger.error(f"Profitability failed: {e}")
+            logger.error(f"Profitability check flatlined: {e}")
             return False
 
     def check_trade_risk(self, symbol, side, amount, leverage=1.0):
@@ -61,7 +62,7 @@ class RiskManager:
                 return False
             return True
         except Exception as e:
-            logger.error(f"Risk check failed: {e}")
+            logger.error(f"Risk check flatlined: {e}")
             return False
 
     def adjust_position_size(self, symbol, amount):
@@ -79,7 +80,7 @@ class RiskManager:
             logger.info(f"Adjusted size for {symbol}: {adjusted} Eddies")
             return min(amount, adjusted)
         except Exception as e:
-            logger.error(f"Position sizing failed: {e}")
+            logger.error(f"Position sizing flatlined: {e}")
             return amount
 
     def adjust_leverage(self, symbol, prediction_confidence, market_regime):
@@ -94,7 +95,7 @@ class RiskManager:
             logger.info(f"Adjusted leverage for {symbol}: {leverage}x")
             return leverage
         except Exception as e:
-            logger.error(f"Leverage adjustment failed: {e}")
+            logger.error(f"Leverage adjustment flatlined: {e}")
             return 1.0
 
     def optimize_portfolio(self):
@@ -155,7 +156,18 @@ class RiskManager:
                 return hedge_symbol, hedge_amount
             return None, 0
         except Exception as e:
-            logger.error(f"Hedge calculation failed: {e}")
+            logger.error(f"Hedge calculation flatlined: {e}")
             return None, 0
+
+    def reserve_creds(self, trade_id, profit):
+        try:
+            reserve_amount = profit * 0.25  # 25% reserve for tax man
+            db.execute_query(
+                "INSERT INTO reserves (trade_id, amount, timestamp) VALUES (?, ?, ?)",
+                (trade_id, reserve_amount, datetime.now().isoformat())
+            )
+            logger.info(f"Reserved {reserve_amount} Eddies for tax creds on trade {trade_id}")
+        except Exception as e:
+            logger.error(f"Cred reserve flatlined: {e}")
 
 risk_manager = RiskManager()
