@@ -7,6 +7,7 @@ from ml.trainer import trainer
 from ml.rl_trainer import rl_trainer
 from utils.logger import logger
 from core.database import db
+from market.data_fetcher import DataFetcher as fetcher
 
 class PairSelector:
     def __init__(self):
@@ -27,14 +28,14 @@ class PairSelector:
             best_score = -1
             for ex_name, ex in self.exchanges.items():
                 await ex.load_markets()
-                pairs = [p for p in ex.markets.keys() if p.endswith("/USDT")]
+                pairs = [f"{ex_name}:{p}" for p in ex.markets.keys() if p.endswith("/USDT")]
                 for pair in pairs:
                     try:
-                        data = await fetcher.fetch_ohlcv(pair, timeframe, limit=limit, exchange=ex_name)
-                        ticker = await ex.fetch_ticker(pair)
-                        book = await fetcher.fetch_order_book(pair, exchange=ex_name)
+                        data = await fetcher.fetch_ohlcv(pair.split(":")[1], timeframe, limit=limit, exchange=ex_name)
+                        ticker = await ex.fetch_ticker(pair.split(":")[1])
+                        book = await fetcher.fetch_order_book(pair.split(":")[1], exchange=ex_name)
                         volume = ticker["quoteVolume"]
-                        prev_volume = await ex.fetch_ticker(pair, params={"timeframe": timeframe, "limit": 2})["quoteVolume"]
+                        prev_volume = await ex.fetch_ticker(pair.split(":")[1], params={"timeframe": timeframe, "limit": 2})["quoteVolume"]
                         volume_spike = (volume / prev_volume - 1) if prev_volume > 0 else 0
                         spread = (ticker["ask"] - ticker["bid"]) / ticker["bid"]
                         volatility = np.std([d[4] for d in data]) / np.mean([d[4] for d in data])
@@ -47,10 +48,10 @@ class PairSelector:
                         prediction = trainer.predict(data[-1])
                         rl_score = rl_trainer.predict(data[-1])
                         score = (prediction + rl_score) * volume * volatility * liquidity * (1 + volume_spike) / (spread + 1e-6)
-                        logger.info(f"Evaluated {ex_name}:{pair}: Score={score}, VolumeSpike={volume_spike}")
+                        logger.info(f"Evaluated {pair}: Score={score}, VolumeSpike={volume_spike}")
                         if score > best_score:
                             best_score = score
-                            best_pair = f"{ex_name}:{pair}"
+                            best_pair = pair
                     except:
                         continue
             if best_pair:
@@ -64,71 +65,60 @@ class PairSelector:
 
     async def auto_rotate_pairs(self):
         try:
-            await self.exchange.load_markets()
-            pairs = [p for p in self.exchange.markets.keys() if p.endswith("/USDT")]
             profitable_pairs = {}
-            trades = db.fetch_all("SELECT symbol, SUM((price * amount) - fee) as profit FROM trades GROUP BY symbol")
-            for trade in trades:
-                profit = trade[1] or 0
-                if profit > 0.01 * db.get_portfolio_value():  # >1% profit
-                    profitable_pairs[trade[0]] = profit
-                elif profit < -0.01 * db.get_portfolio_value():  # <-1% loss
-                    if trade[0] in profitable_pairs:
-                        del profitable_pairs[trade[0]]
-            for pair in pairs:
-                if pair not in profitable_pairs:
-                    data = await fetcher.fetch_ohlcv(pair, "1h", limit=100)
-                    profit = sum((d[4] - d[1]) * 0.001 for d in data) / 100  # Rough profit estimate
-                    if profit > 0.01 * db.get_portfolio_value():
-                        profitable_pairs[pair] = profit
-            top_pairs = list(profitable_pairs.keys())[:10]  # Top 10 profitable pairs
-            logger.info(f"Auto-rotated pairs: {top_pairs}")
-            return top_pairs
+            for ex_name, ex in self.exchanges.items():
+                await ex.load_markets()
+                pairs = [f"{ex_name}:{p}" for p in ex.markets.keys() if p.endswith("/USDT")]
+                trades = db.fetch_all("SELECT symbol, SUM((price * amount) - fee) as profit FROM trades WHERE symbol LIKE ? GROUP BY symbol", (f"{ex_name}:%",))
+                if not trades:  # Handle empty table
+                    continue
+                for trade in trades:
+                    profit = trade[1] or 0
+                    symbol = trade[0]
+                    if profit > 0.01 * db.get_portfolio_value():  # >1% profit
+                        profitable_pairs[symbol] = profit
+                    elif profit < -0.01 * db.get_portfolio_value():  # <-1% loss
+                        if symbol in profitable_pairs:
+                            del profitable_pairs[symbol]
+                for pair in pairs:
+                    if pair not in profitable_pairs:
+                        data = await fetcher.fetch_ohlcv(pair.split(":")[1], "1h", limit=100, exchange=ex_name)
+                        rl_pred = rl_trainer.predict(data[-1]) if data else 0
+                        profit_est = rl_pred * np.mean([d[4] for d in data]) if data else 0
+                        if profit_est > 0.01 * db.get_portfolio_value():
+                            profitable_pairs[pair] = profit_est
+            top_pairs = list(profitable_pairs.keys())[:10]  # Top 10
+            return top_pairs if top_pairs else [f"binance:{settings.TRADING['symbol']}"]
         except Exception as e:
             logger.error(f"Pair rotation flatlined: {e}")
-            return [settings.TRADING["symbol"]]
+            return [f"binance:{settings.TRADING['symbol']}"]
 
     async def detect_arbitrage(self):
         try:
             opportunities = []
-            for pair in [p for p in self.exchanges["binance"].markets.keys() if p.endswith("/USDT")]:
-                try:
-                    prices = {}
-                    for ex_name, ex in self.exchanges.items():
-                        await ex.load_markets()
-                        if pair in ex.markets:
-                            ticker = await ex.fetch_ticker(pair)
-                            prices[ex_name] = {"bid": ticker["bid"], "ask": ticker["ask"]}
-                    for ex1 in prices:
-                        for ex2 in prices:
-                            if ex1 != ex2:
-                                profit = (prices[ex2]["bid"] / prices[ex1]["ask"] - 1) - 2 * settings.TRADING["fees"]["taker"]
-                                if profit > 0.01:
-                                    opportunities.append({
-                                        "pair": pair,
-                                        "buy_exchange": ex1,
-                                        "sell_exchange": ex2,
-                                        "profit": profit
-                                    })
-                    binance = self.exchanges["binance"]
-                    await binance.load_markets()
-                    pairs = [p for p in binance.markets.keys() if p.endswith("/USDT")]
-                    for i, pair1 in enumerate(pairs):
-                        for pair2 in pairs[i+1:]:
-                            for pair3 in pairs:
-                                if pair1.split("/")[0] == pair3.split("/")[0] and pair2.split("/")[0] == pair3.split("/")[1]:
-                                    ticker1 = await binance.fetch_ticker(pair1)
-                                    ticker2 = await binance.fetch_ticker(pair2)
-                                    ticker3 = await binance.fetch_ticker(pair3)
-                                    profit = (1 / ticker1["ask"]) * ticker2["bid"] * ticker3["bid"] - 1
+            for ex_name, ex in self.exchanges.items():
+                await ex.load_markets()
+                pairs = [p for p in ex.markets.keys() if p.endswith("/USDT")]
+                for pair in pairs:
+                    try:
+                        prices = {}
+                        for other_ex_name, other_ex in self.exchanges.items():
+                            if pair in other_ex.markets:
+                                ticker = await other_ex.fetch_ticker(pair)
+                                prices[other_ex_name] = {"bid": ticker["bid"], "ask": ticker["ask"]}
+                        for buy_ex in prices:
+                            for sell_ex in prices:
+                                if buy_ex != sell_ex:
+                                    profit = (prices[sell_ex]["bid"] / prices[buy_ex]["ask"] - 1) - 2 * settings.TRADING["fees"]["taker"]
                                     if profit > 0.01:
                                         opportunities.append({
-                                            "path": [pair1, pair2, pair3],
-                                            "profit": profit,
-                                            "exchange": "binance"
+                                            "pair": pair,
+                                            "buy_exchange": buy_ex,
+                                            "sell_exchange": sell_ex,
+                                            "profit": profit
                                         })
-                except:
-                    continue
+                    except:
+                        continue
             logger.info(f"Arbitrage scan: {len(opportunities)} opportunities")
             return opportunities
         except Exception as e:
