@@ -9,7 +9,7 @@ import requests
 class TaxReporter:
     def __init__(self):
         self.tax_rates_file = "config/tax_rates.csv"
-        self.scrape_url = "https://example.com/tax_rates.csv"  # Placeholder; replace with real source
+        self.scrape_url = "https://www.oecd.org/tax/tax-policy/tax-database.csv"  # Example; adjust as needed
         self.load_tax_rates()
 
     def load_tax_rates(self):
@@ -19,21 +19,20 @@ class TaxReporter:
                     reader = csv.DictReader(f)
                     self.rates = {row["country"]: float(row["rate"]) for row in reader}
             else:
-                self.rates = {}  # Empty if file missing
+                self.rates = {}
                 logger.warning("Tax rates file not found, scraping or using DB")
-            # Load from DB as fallback
             db_rates = db.fetch_all("SELECT country, rate FROM tax_rates")
             for row in db_rates:
                 self.rates[row[0]] = float(row[1])
         except Exception as e:
             logger.error(f"Tax rates load flatlined: {e}")
-            self.rates = {"Default": 0.30}  # Fallback
+            self.rates = {"Default": 0.30}
 
     def update_tax_rates(self):
         try:
             response = requests.get(self.scrape_url, timeout=10)
             response.raise_for_status()
-            rates_data = {row["country"]: float(row["rate"]) for row in csv.DictReader(response.text.splitlines())}
+            rates_data = {row["country"]: float(row["rate"]) for row in csv.DictReader(response.text.splitlines()) if "country" in row and "rate" in row}
             with open(self.tax_rates_file, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["country", "rate"])
