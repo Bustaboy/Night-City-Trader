@@ -2,6 +2,8 @@
 from config.settings import settings
 from core.database import db
 from utils.logger import logger
+import numpy as np
+from scipy.optimize import minimize
 
 class RiskManager:
     def __init__(self):
@@ -14,17 +16,16 @@ class RiskManager:
         self.max_daily_loss = settings.TRADING["risk"][profile]["max_daily_loss"]
         self.stop_loss = settings.TRADING["risk"][profile]["stop_loss"]
         self.take_profit = settings.TRADING["risk"][profile]["take_profit"]
-        logger.info(f"Risk profile set to: {profile}")
+        logger.info(f"Arasaka Risk Protocols set to: {profile}")
 
     def check_profitability(self, symbol, side, amount):
         try:
-            # Fetch current price
             market_data = db.fetch_one(
                 "SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
                 (symbol,)
             )
             if not market_data:
-                logger.warning("No market data available for profitability check")
+                logger.warning("No market data for profitability check")
                 return False
             price = market_data[0]
             fee_rate = settings.TRADING["fees"]["taker"]
@@ -40,16 +41,13 @@ class RiskManager:
 
     def check_trade_risk(self, symbol, side, amount):
         try:
-            # Check position size
             total_position = db.fetch_one(
                 "SELECT SUM(amount) FROM positions WHERE symbol = ?", (symbol,)
             )[0] or 0
-            portfolio_value = 100  # Placeholder; should integrate real portfolio value
+            portfolio_value = 100  # Placeholder
             if amount > self.max_position_size * portfolio_value:
                 logger.warning(f"Trade rejected: Position size exceeds {self.max_position_size}")
                 return False
-
-            # Check daily loss
             trades_today = db.fetch_all(
                 "SELECT amount, price FROM trades WHERE timestamp >= date('now', 'start of day')"
             )
@@ -57,8 +55,57 @@ class RiskManager:
             if daily_pnl < -self.max_daily_loss * portfolio_value:
                 logger.warning(f"Trade rejected: Daily loss exceeds {self.max_daily_loss}")
                 return False
-
             return True
         except Exception as e:
             logger.error(f"Risk check failed: {e}")
             return False
+
+    def adjust_position_size(self, symbol, amount):
+        try:
+            data = db.fetch_all(
+                "SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 20",
+                (symbol,)
+            )
+            returns = np.diff([d[0] for d in data]) / [d[0] for d in data][:-1]
+            volatility = np.std(returns)
+            kelly_fraction = (np.mean(returns) / volatility**2) if volatility > 0 else 0.1
+            kelly_fraction = min(max(kelly_fraction, 0.01), 0.5)  # Limit to 1-50%
+            portfolio_value = 100  # Placeholder
+            adjusted = kelly_fraction * portfolio_value * self.max_position_size
+            logger.info(f"Adjusted position size for {symbol}: {adjusted} Eddies")
+            return min(amount, adjusted)
+        except Exception as e:
+            logger.error(f"Position sizing failed: {e}")
+            return amount
+
+    def optimize_portfolio(self):
+        try:
+            symbols = db.fetch_all("SELECT DISTINCT symbol FROM positions")
+            symbols = [s[0] for s in symbols]
+            if not symbols:
+                return {}
+            returns = []
+            for symbol in symbols:
+                data = db.fetch_all(
+                    "SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 252",
+                    (symbol,)
+                )
+                if len(data) < 252:
+                    continue
+                ret = np.diff([d[0] for d in data]) / [d[0] for d in data][:-1]
+                returns.append(ret)
+            returns = np.array(returns)
+            cov_matrix = np.cov(returns)
+            def objective(weights):
+                port_return = np.sum(returns.mean(axis=1) * weights) * 252
+                port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+                return -port_return / port_vol  # Maximize Sharpe ratio
+            constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1}
+            bounds = [(0, 1) for _ in range(len(symbols))]
+            result = minimize(objective, np.ones(len(symbols)) / len(symbols), bounds=bounds, constraints=constraints)
+            weights = {s: w for s, w in zip(symbols, result.x)}
+            logger.info(f"Portfolio optimized: {weights}")
+            return weights
+        except Exception as e:
+            logger.error(f"Portfolio optimization failed: {e}")
+            return {}
