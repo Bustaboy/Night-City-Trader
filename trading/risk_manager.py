@@ -3,6 +3,7 @@ from config.settings import settings
 from core.database import db
 from utils.logger import logger
 import numpy as np
+import pandas as pd
 from scipy.optimize import minimize
 from datetime import datetime
 from trading.trading_bot import bot
@@ -12,6 +13,7 @@ class RiskManager:
         self.risk_profile = "moderate"
         self.set_risk_profile(self.risk_profile)
         self.flash_drop_threshold = 0.10  # Default 10% drop
+        self.stop_loss_buffer = 0.02  # 2% buffer
 
     def set_risk_profile(self, profile):
         self.risk_profile = profile
@@ -166,31 +168,46 @@ class RiskManager:
 
     def auto_hedge(self):
         try:
-            data = db.fetch_all("SELECT symbol FROM positions")
-            for symbol in [row[0] for row in data]:
+            data = db.fetch_all("SELECT symbol, side, amount FROM positions")
+            for symbol, side, amount in data:
                 market_data = db.fetch_all("SELECT high, low, close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 14", (symbol,))
                 if market_data:
                     df = pd.DataFrame(market_data, columns=["high", "low", "close"])
                     atr = ((df["high"] - df["low"]).max() + (df["high"] - df["close"].shift()).abs().max() + (df["low"] - df["close"].shift()).abs().max()) / 3
-                    if atr > self.flash_drop_threshold:  # Use configurable threshold
-                        hedge_symbol, hedge_amount = self.calculate_hedge(symbol, db.fetch_one("SELECT amount FROM positions WHERE symbol = ?", (symbol,))[0])
+                    # Dynamic threshold based on 30-day volatility
+                    hist_data = db.fetch_all("SELECT close FROM historical_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 720", (symbol,))
+                    if hist_data:
+                        hist_vol = np.std(np.diff([d[0] for d in hist_data]) / [d[0] for d in hist_data][:-1])
+                        dynamic_threshold = max(self.flash_drop_threshold, hist_vol * 2)
+                    else:
+                        dynamic_threshold = self.flash_drop_threshold
+                    if atr > dynamic_threshold:
+                        hedge_symbol, hedge_amount = self.calculate_hedge(symbol, amount)
                         if hedge_symbol:
-                            asyncio.run(bot.execute_trade(hedge_symbol, "buy" if side == "sell" else "sell", hedge_amount))
+                            asyncio.run(bot.execute_trade(hedge_symbol, "sell" if side == "buy" else "buy", hedge_amount))
             logger.info("Auto-hedged high-volatility pairs - Arasaka’s moves blocked!")
         except Exception as e:
             logger.error(f"Auto-hedge flatlined: {e}")
 
     def flash_crash_protection(self):
         try:
-            data = db.fetch_all("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 5", (settings.TRADING["symbol"],))
-            if len(data) == 5:
-                prices = [d[0] for d in data]
-                drop = (prices[0] - prices[-1]) / prices[-1]
-                if drop > self.flash_drop_threshold:  # Use configurable threshold
-                    positions = db.fetch_all("SELECT id, symbol, amount FROM positions WHERE side = 'buy'")
-                    for pos in positions:
-                        asyncio.run(bot.execute_trade(pos[1], "sell", pos[2]))
-                    logger.info("Flash crash detected - Positions exited, Eddies saved!")
+            positions = db.fetch_all("SELECT symbol, amount FROM positions WHERE side = 'buy'")
+            for symbol, amount in positions:
+                data = db.fetch_all("SELECT close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 5", (symbol,))
+                if len(data) == 5:
+                    prices = [d[0] for d in data]
+                    drop = (prices[0] - prices[-1]) / prices[-1]
+                    # Set stop-loss based on ATR
+                    market_data = db.fetch_all("SELECT high, low, close FROM market_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 14", (symbol,))
+                    if market_data:
+                        df = pd.DataFrame(market_data, columns=["high", "low", "close"])
+                        atr = ((df["high"] - df["low"]).max() + (df["high"] - df["close"].shift()).abs().max() + (df["low"] - df["close"].shift()).abs().max()) / 3
+                        stop_price = prices[-1] * (1 - self.stop_loss_buffer - atr)
+                    else:
+                        stop_price = prices[-1] * (1 - self.stop_loss_buffer)
+                    if drop > self.flash_drop_threshold:
+                        asyncio.run(bot.execute_trade(symbol, "sell", amount, stop_price=stop_price))
+            logger.info("Flash crash detected - Positions exited with stop-loss, Eddies saved!")
         except Exception as e:
             logger.error(f"Flash crash protection flatlined: {e}")
 
