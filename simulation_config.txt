@@ -1,0 +1,8 @@
+# Simulation Mode Configuration
+SIMULATION_MODE=true
+SIMULATION_TRADES=true
+SIMULATION_PRICES=true
+
+# These will be ignored in simulation mode
+BINANCE_API_KEY=simulation_key
+BINANCE_API_SECRET=simulation_secret

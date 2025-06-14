@@ -1,0 +1,21 @@
+
+# PATCH 1: Fix notifications when minimized
+# In _show_notification method, add:
+if self.root.state() == 'iconic':  # If minimized
+    return  # Don't show notification
+
+# PATCH 2: Add threading import at top
+import threading
+
+# PATCH 3: Wrap long operations in threads
+# For arbitrage scan:
+def scan_arbitrage(self):
+    def _scan():
+        # ... existing code ...
+    threading.Thread(target=_scan, daemon=True).start()
+
+# PATCH 4: Show loading for trades
+# In execute_trade method:
+loading = LoadingDialog(self.root, "Executing trade...")
+# ... trade code ...
+loading.destroy()

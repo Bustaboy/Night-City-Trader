@@ -1,0 +1,38 @@
+ARASAKA TEST RESULTS - 2025-06-14 21:26:58
+============================================================
+PASS   - Python 3.9+
+PASS   - Package: fastapi
+PASS   - Package: ccxt
+PASS   - Package: pandas
+PASS   - Package: numpy
+PASS   - Package: tensorflow
+PASS   - Directory: api
+PASS   - Directory: config
+PASS   - Directory: core
+PASS   - Directory: trading
+PASS   - Directory: ml
+PASS   - Directory: gui
+PASS   - Directory: market
+PASS   - Directory: utils
+PASS   - Directory: scripts
+PASS   - Directory: tests
+PASS   - .env file
+PASS   - API keys configured
+PASS   - config.yaml
+PASS   - Database connection
+PASS   - Table: trades
+PASS   - Table: positions
+PASS   - Table: historical_data
+PASS   - ML model
+PASS   - RL model
+PASS   - Trading bot
+PASS   - Risk manager
+PASS   - Trading strategies
+PASS   - Risk profile setting
+PASS   - Default PIN (2077)
+PASS   - Encryption/Decryption
+FAIL   - API server
+PASS   - Risk check simulation
+PASS   - Position sizing
+
+Total: True/34 passed

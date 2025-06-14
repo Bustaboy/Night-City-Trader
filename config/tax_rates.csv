@@ -5,17 +5,17 @@ UK,0.20
 Portugal,0.00
 France,0.30
 Japan,0.20
-Canada,0.50  # 50% for capital gains (varies by province)
-Australia,0.45  # 45% top marginal rate
-Italy,0.26  # 26% capital gains
-Spain,0.19  # 19% for first 6000 EUR
-Netherlands,0.30  # 30% box 3 tax
-Switzerland,0.00  # No federal crypto tax
-Brazil,0.15  # 15% on profits
-Mexico,0.20  # 20% on crypto gains
-Argentina,0.35  # 35% estimated
-South Africa,0.45  # 45% top rate
-India,0.30  # 30% on crypto
-Singapore,0.00  # No capital gains tax
-China,0.20  # 20% estimated (varies)
-Russia,0.13  # 13% personal income tax
+Canada,0.50
+Australia,0.45
+Italy,0.26
+Spain,0.19
+Netherlands,0.30
+Switzerland,0.00
+Brazil,0.15
+Mexico,0.20
+Argentina,0.35
+South Africa,0.45
+India,0.30
+Singapore,0.00
+China,0.20
+Russia,0.13
