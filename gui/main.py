@@ -13,6 +13,7 @@ from market.pair_selector import pair_selector
 from trading.liquidity_mining import liquidity_miner
 from trading.analyze_performance import performance_analyzer
 from utils.security_manager import security_manager
+from datetime import timedelta
 import time
 import shutil
 import os
@@ -25,6 +26,8 @@ class TradingApp:
         self.api_url = f"http://{settings.API_HOST}:{settings.API_PORT}"
         self.loop = asyncio.get_event_loop()
         self.bot = TradingBot()
+        self.last_failed_task = None
+        self.last_error_time = 0
 
         # Cyberpunk Theme
         self.root.configure(bg="#0a0a23")
@@ -267,10 +270,17 @@ class TradingApp:
         if self.auto_performance_analytics.get() and current_time - self.last_performance_analytics > 24 * 3600:  # Daily
             asyncio.run(performance_analyzer.auto_analyze_performance())
             self.last_performance_analytics = current_time
-        if self.auto_flash_protection.get() and current_time - self.last_flash_protection > 3600:  # Hourly
+        if self.auto_flash_protection.get() and current_time - self.last_flash_protection > 300:  # 5-min check
             self.protect_now()
             self.last_flash_protection = current_time
-        self.root.after(3600000, self.schedule_automation)  # Check hourly
+        if current_time - self.last_health_alert > 24 * 3600:  # Daily with health check
+            portfolio_value = db.get_portfolio_value()
+            daily_pnl = sum(t[0] * t[1] * (-1 if t[2] == "sell" else 1) for t in db.fetch_all("SELECT amount, price, side FROM trades WHERE timestamp >= date('now', 'start of day')"))
+        if daily_pnl > 0.01 * portfolio_value:
+            messagebox.showinfo("Profit Alert", f"Profit today: {daily_pnl} Eddies - Nice haul, Choom!")
+        if  self.last_error_time and current_time - self.last_error_time < 300:  # 5-min retry
+            self.retry_failed_task()
+    self.root.after(300000, self.schedule_automation)  # Check every 5 mins
 
     def update_pair_list(self):
         try:
@@ -704,24 +714,26 @@ class TradingApp:
         except Exception as e:
             messagebox.showerror("Error", f"DeFi settings save flatlined: {e}")
 
-    def load_defi_settings(self):
-        try:
-            if not security_manager.check_tamper():
-                messagebox.showerror("Security", "Tamper detected - DeFi load blocked!")
-                return
-            config = liquidity_miner.load_config()
-            if config["rpc_url"]:
-                self.rpc_url_entry.delete(0, tk.END)
-                self.rpc_url_entry.insert(0, config["rpc_url"])
-                self.pancake_address_entry.delete(0, tk.END)
-                self.pancake_address_entry.insert(0, config["pancake_swap_address"])
-                self.abi_entry.delete(0, tk.END)
-                self.abi_entry.insert(0, config["abi"])
-                self.private_key_entry.delete(0, tk.END)
-                self.private_key_entry.insert(0, "*" * len(config["private_key"]) if config["private_key"] else "")
-                messagebox.showinfo("Success", "DeFi settings loaded - Check entries!")
-        except Exception as e:
-            messagebox.showerror("Error", f"DeFi settings load flatlined: {e}")
+def load_defi_settings(self):
+    try:
+        if not security_manager.check_tamper():
+            messagebox.showerror("Security", "Tamper detected - DeFi load blocked!")
+            return
+        config = liquidity_miner.load_config()
+        if config["rpc_url"] and all(config.values()):  # Validate all fields
+            self.rpc_url_entry.delete(0, tk.END)
+            self.rpc_url_entry.insert(0, config["rpc_url"])
+            self.pancake_address_entry.delete(0, tk.END)
+            self.pancake_address_entry.insert(0, config["pancake_swap_address"])
+            self.abi_entry.delete(0, tk.END)
+            self.abi_entry.insert(0, config["abi"])
+            self.private_key_entry.delete(0, tk.END)
+            self.private_key_entry.insert(0, "*" * len(config["private_key"]) if config["private_key"] else "")
+            messagebox.showinfo("Success", "DeFi settings loaded - Check entries!")
+        else:
+            messagebox.showwarning("Warning", "Invalid DeFi config - Please re-enter settings!")
+    except Exception as e:
+        messagebox.showerror("Error", f"DeFi settings load flatlined: {e}")
 
     def login(self):
         try:
@@ -865,7 +877,7 @@ def schedule_automation(self):
 
 def retry_failed_task(self):
     try:
-        if hasattr(self, 'last_failed_task'):
+        if self.last_failed_task:
             if self.last_failed_task == "trade":
                 self.auto_trade_now()
             elif self.last_failed_task == "preload":
@@ -874,6 +886,7 @@ def retry_failed_task(self):
             logger.info("Error recovered - Back in action!")
     except Exception as e:
         logger.error(f"Retry flatlined: {e}")
+        self.last_error_time = current_time  # Update if still failing
 
 if __name__ == "__main__":
     root = tk.Tk()
