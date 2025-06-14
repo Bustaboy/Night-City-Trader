@@ -159,6 +159,8 @@ class TradingApp:
                 self.portfolio_text.insert(tk.END, f"Trade: {trade}\n")
             for position in data["positions"]:
                 self.portfolio_text.insert(tk.END, f"Position: {position}\n")
+            reserves = db.fetch_all("SELECT SUM(amount) FROM reserves")[0][0] or 0
+            self.portfolio_text.insert(tk.END, f"Reserved Creds: {reserves} Eddies\n")
             self.portfolio_text.insert(tk.END, f"Optimized Weights: {data['optimized_weights']}\n")
         except Exception as e:
             messagebox.showerror("Error", f"Portfolio refresh flatlined: {e}")
