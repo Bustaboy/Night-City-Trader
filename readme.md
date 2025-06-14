@@ -1,339 +1,506 @@
-# 🌆 Arasaka Neural-Net Trading Matrix
+# 🤖 Arasaka Neural-Net Trading Matrix
 
-<div align="center">
+![Cyberpunk Trading Bot](https://img.shields.io/badge/Status-Active-00ff00?style=for-the-badge&logo=bitcoin&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.17-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-ff00ff?style=for-the-badge)
 
-![Version](https://img.shields.io/badge/version-1.0-neon.svg?style=for-the-badge)
-![License](https://img.shields.io/badge/license-MIT-purple.svg?style=for-the-badge)
-![Python](https://img.shields.io/badge/python-3.9+-blue.svg?style=for-the-badge)
-![Status](https://img.shields.io/badge/status-JACKED_IN-brightgreen.svg?style=for-the-badge)
+Welcome to the **Arasaka Neural-Net Trading Matrix** - a cyberpunk-themed cryptocurrency trading bot that combines Machine Learning (XGBoost), Reinforcement Learning (DQN), and real-time market analysis to help you stack Eddies (profits) in the crypto markets!
 
-**🏙️ Welcome to Night City's premier AI-driven crypto trading daemon 🏙️**
+## 🌟 Features
 
-*Jack into the Net and stack Eddies with cutting-edge Neural-Net technology*
+- **🧠 Neural-Net Trading**: ML + RL models trained on 15+ years of crypto data
+- **📊 Multi-Strategy System**: Breakout, mean reversion, momentum, scalping, swing trading
+- **🎯 Smart Pair Selection**: Automatic selection of the most profitable trading pairs
+- **🛡️ Risk Management**: Dynamic position sizing, leverage adjustment, and portfolio optimization
+- **💡 Sentiment Analysis**: Real-time social media and news sentiment tracking
+- **⛓️ On-Chain Metrics**: Whale movements and blockchain activity monitoring
+- **🌊 DeFi Integration**: Liquidity mining for passive income
+- **🚨 Emergency Kill Switch**: Instant shutdown of all trading operations
+- **📱 Cyberpunk GUI**: Neon-lit interface for easy control
+- **📈 Backtesting**: Test strategies on historical data
+- **💰 Tax Reporting**: Automated tax report generation
 
-</div>
+## 📋 Table of Contents
 
----
+1. [Installation](#-installation)
+2. [GitHub Upload Instructions](#-github-upload-instructions)
+3. [Configuration](#-configuration)
+4. [Usage](#-usage)
+5. [Project Structure](#-project-structure)
+6. [Trading Strategies](#-trading-strategies)
+7. [Risk Management](#-risk-management)
+8. [API Documentation](#-api-documentation)
+9. [Troubleshooting](#-troubleshooting)
+10. [Contributing](#-contributing)
+11. [Security](#-security)
+12. [License](#-license)
 
-## 🔮 **SYSTEM OVERVIEW**
+## 🚀 Installation
 
-The **Arasaka Neural-Net Trading Matrix** is a militech-grade cryptocurrency trading bot that operates locally on your rig. Powered by advanced **Machine Learning** (XGBoost) and **Reinforcement Learning** (DQN) algorithms, this cyber-enhanced daemon analyzes up to **15 years** of market data to dominate bull, bear, and altcoin markets.
+### Prerequisites
 
-### ⚡ **Core Features**
+- Python 3.9 or higher
+- Git
+- 8GB RAM minimum (16GB recommended)
+- Optional: NVIDIA GPU with CUDA support for faster training
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| 🧠 **Neural-Net Trading** | ML/RL models with GPU acceleration | ✅ ACTIVE |
-| 🎯 **Dynamic Pair Selection** | Auto-selects trending pairs via volume analysis | ✅ ACTIVE |
-| 💰 **Arbitrage Engine** | Cross-exchange profit opportunities | ✅ ACTIVE |
-| 📊 **Sentiment Analysis** | Real-time social media & news sentiment | ✅ ACTIVE |
-| 🛡️ **Risk Management** | Adaptive leverage, Kelly sizing, ATR stops | ✅ ACTIVE |
-| 🎮 **Netrunner's Dashboard** | Cyberpunk-themed GUI interface | ✅ ACTIVE |
-| ⚠️ **Kill Switch** | Emergency trading halt system | ✅ STANDBY |
-
----
-
-## 🚀 **QUICK DEPLOYMENT**
-
-### **Option 1: Source Installation** *(Recommended for Netrunners)*
+### Step 1: Clone the Repository
 
 ```bash
-# Clone the mainframe
-git clone https://github.com/your-username/arasaka-neural-net-matrix.git
-cd arasaka-neural-net-matrix
+git clone https://github.com/YOUR_USERNAME/arasaka-trading-matrix.git
+cd arasaka-trading-matrix
+```
 
-# Initialize virtual environment
+### Step 2: Create Virtual Environment
+
+```bash
+# Windows
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+venv\Scripts\activate
 
-# Install dependencies
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Step 3: Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-# Configure credentials
+**Note**: For TA-Lib installation:
+- **Windows**: Download the wheel from [here](https://www.lfd.uci.edu/~gohlke/pythonlibs/#ta-lib) and install with `pip install TA_Lib‑0.4.24‑cp39‑cp39‑win_amd64.whl`
+- **macOS**: `brew install ta-lib` then `pip install TA-Lib`
+- **Linux**: `sudo apt-get install ta-lib` then `pip install TA-Lib`
+
+### Step 4: Configure Environment
+
+```bash
+# Copy the example environment file
 cp .env.example .env
+
 # Edit .env with your API keys
+# nano .env  # or use any text editor
 ```
 
-### **Option 2: Pre-Built Executable** *(For Corporate Users)*
-
-1. Download `ArasakaTradingMatrix.exe` from [Releases](../../releases)
-2. Run installer with admin privileges
-3. Launch via desktop shortcut
-4. Configure API keys in settings
-
----
-
-## ⚙️ **SYSTEM CONFIGURATION**
-
-### **🔑 Required Credentials**
-
-Create your `.env` file with the following:
-
-```env
-# Exchange API Credentials
-BINANCE_API_KEY=your_binance_api_key
-BINANCE_API_SECRET=your_binance_secret
-
-# Optional Enhancement APIs
-CRYPTOPANIC_API_KEY=your_sentiment_key
-GLASSNODE_API_KEY=your_onchain_key
-TRADINGVIEW_API_KEY=your_social_key
-
-# System Configuration
-TESTNET=true  # Start with testnet for safety
-LOG_LEVEL=INFO
-DATABASE_URL=sqlite:///local_trading.db
-```
-
-### **📊 Initialize Database**
+### Step 5: Initialize Database
 
 ```bash
 python scripts/setup_database.py
 ```
 
-### **🚀 Launch Sequence**
+### Step 6: Run the Application
 
 ```bash
-# Start API daemon
-uvicorn api.app:app --host 127.0.0.1 --port 8000
+# Start the API server
+python api/app.py
 
-# Launch Netrunner's Dashboard (in new terminal)
+# In a new terminal, start the GUI
 python gui/main.py
 ```
 
----
+## 📤 GitHub Upload Instructions
 
-## 🎮 **NETRUNNER'S DASHBOARD**
+### Creating a New Repository
 
-<div align="center">
+1. **Go to GitHub**:
+   - Navigate to https://github.com
+   - Click the green "New" button or go to https://github.com/new
 
-### **Main Interface**
-*Experience the future of trading with our neon-lit cyberpunk GUI*
+2. **Configure Repository**:
+   - Repository name: `arasaka-trading-matrix`
+   - Description: "Cyberpunk-themed AI crypto trading bot with ML/RL"
+   - Set to **Private** (recommended for trading bots)
+   - Don't initialize with README (we already have one)
 
-</div>
+3. **Create Repository**:
+   - Click "Create repository"
 
-### **🎯 Trading Controls**
+### Uploading Code via GitHub Web Interface
 
-- **🔍 Scan Optimal Pair**: AI-powered pair selection with volume spike detection
-- **💎 Stack Eddies**: Execute buy/sell orders with dynamic leverage
-- **⚖️ Risk Profiles**: Choose from Conservative, Moderate, or Aggressive protocols
-- **🧪 Testnet Toggle**: Switch between demo and live trading modes
-- **🧠 Train Neural-Net**: Retrain AI models with latest market data
+Since all files are provided as artifacts, you can upload directly through GitHub:
 
-### **📈 Analytics Suite**
+1. **On your new repository page**:
+   - Click "uploading an existing file"
 
-- **Portfolio Tracker**: Real-time P&L and position monitoring
-- **Backtest Engine**: Historical strategy performance analysis
-- **Sentiment Monitor**: Market mood from social media and news
-- **Risk Dashboard**: Real-time risk metrics and exposure analysis
+2. **Create Project Structure**:
+   First, create the folder structure by creating files in these paths:
+   ```
+   api/
+   config/
+   core/
+   emergency/
+   gui/
+   logs/
+   market/
+   ml/
+   scripts/
+   tests/
+   trading/
+   utils/
+   data/historical/  # Create empty folder with .gitkeep file
+   backups/          # Create empty folder with .gitkeep file
+   ```
 
-### **⚠️ Emergency Protocols**
+3. **Upload Files in Order**:
+   
+   **Root Directory Files**:
+   - `README.md` (this file)
+   - `.env.example`
+   - `requirements.txt`
+   - `.gitignore` (create with content below)
 
-- **🚨 Kill Switch**: Immediate trading halt and position liquidation
-- **🔒 Security Lock**: Tamper detection and data protection
-- **💾 Auto Backup**: Scheduled database backups
+   **Core Directory (`core/`)**:
+   - `database.py` (artifact #01)
+   - `__init__.py` (empty file)
 
----
+   **Scripts Directory (`scripts/`)**:
+   - `import_historical_data.py` (artifact #02)
+   - `setup_database.py` (artifact #21)
+   - `__init__.py` (empty file)
 
-## 🧠 **AI ARCHITECTURE**
+   **Trading Directory (`trading/`)**:
+   - `trading_bot.py` (artifact #03)
+   - `risk_manager.py` (artifact #06)
+   - `strategies.py` (artifact #16)
+   - `liquidity_mining.py` (artifact #17)
+   - `__init__.py` (empty file)
 
-### **Machine Learning Pipeline**
+   **GUI Directory (`gui/`)**:
+   - `main.py` (artifact #04)
+   - `__init__.py` (empty file)
 
-```mermaid
-graph TD
-    A[Historical Data] --> B[Feature Engineering]
-    B --> C[XGBoost Classifier]
-    C --> D[Trade Signal]
-    
-    E[Market Data] --> F[RL Environment]
-    F --> G[DQN Agent]
-    G --> H[Action Prediction]
-    
-    D --> I[Risk Manager]
-    H --> I
-    I --> J[Order Execution]
-```
+   **Config Directory (`config/`)**:
+   - `settings.py` (artifact #05)
+   - `config.yaml` (artifact #20)
+   - `tax_rates.csv` (create from artifact #16)
+   - `__init__.py` (empty file)
 
-### **🎯 Features Analyzed**
+   **ML Directory (`ml/`)**:
+   - `trainer.py` (artifact #07)
+   - `rl_trainer.py` (artifact #08)
+   - `__init__.py` (empty file)
 
-- **Technical Indicators**: SMA, RSI, MACD, Bollinger Bands
-- **Market Sentiment**: Social media analysis, news sentiment
-- **On-Chain Metrics**: Whale movements, exchange flows
-- **Volatility Patterns**: ATR, historical volatility
-- **Seasonality**: Time-based market patterns
+   **Market Directory (`market/`)**:
+   - `data_fetcher.py` (artifact #09)
+   - `pair_selector.py` (artifact #11)
+   - `__init__.py` (empty file)
 
----
+   **API Directory (`api/`)**:
+   - `app.py` (artifact #10)
+   - `__init__.py` (empty file)
 
-## 📊 **SUPPORTED EXCHANGES**
+   **Utils Directory (`utils/`)**:
+   - `logger.py` (artifact #12)
+   - `security_manager.py` (artifact #13)
+   - `tax_reporter.py` (artifact #15)
+   - `__init__.py` (empty file)
 
-| Exchange | Status | Features |
-|----------|--------|----------|
-| 🟡 **Binance** | ✅ Full Support | Spot, Futures, Testnet |
-| 🔵 **Kraken** | ✅ Spot Trading | API Integration |
-| 🟢 **Coinbase** | ✅ Spot Trading | Pro API |
+   **Emergency Directory (`emergency/`)**:
+   - `kill_switch.py` (artifact #14)
+   - `__init__.py` (empty file)
 
----
+4. **Create .gitignore**:
+   ```gitignore
+   # Python
+   __pycache__/
+   *.py[cod]
+   *$py.class
+   *.so
+   .Python
+   venv/
+   env/
+   ENV/
 
-## 🛡️ **RISK MANAGEMENT**
+   # Environment variables
+   .env
 
-### **Adaptive Risk Protocols**
+   # Database
+   *.db
+   *.db-journal
 
-- **Dynamic Leverage**: 1x-3x based on market conditions and confidence
-- **Kelly Sizing**: Optimal position sizing based on win probability
-- **ATR Stop-Loss**: Volatility-adjusted stop losses
-- **Flash Crash Protection**: Rapid liquidation during market crashes
-- **Portfolio Hedging**: Cross-asset correlation hedging
+   # Logs
+   logs/
+   *.log
 
-### **Risk Profiles**
+   # ML Models
+   *.pkl
+   *.h5
+   *.joblib
 
-| Profile | Max Position | Daily Loss Limit | Leverage |
-|---------|--------------|------------------|----------|
-| **Conservative** | 0.5% | 2% | 1x |
-| **Moderate** | 1% | 5% | 2x |
-| **Aggressive** | 2% | 10% | 3x |
+   # Config
+   config/security.key
+   config/defi_config.json
 
----
+   # Backups
+   backups/
+   backup_*.db
 
-## 📈 **PERFORMANCE ANALYTICS**
+   # Trading data
+   data/historical/*.csv
 
-### **Key Metrics Tracked**
+   # Emergency files
+   EMERGENCY_STOP_ACTIVE
+   SYSTEM_LOCKED
+   emergency_report_*.txt
 
-- **Sharpe Ratio**: Risk-adjusted returns
-- **Maximum Drawdown**: Worst peak-to-trough decline
-- **Win Rate**: Percentage of profitable trades
-- **Profit Factor**: Ratio of gross profit to gross loss
-- **Calmar Ratio**: Annual return vs max drawdown
+   # IDE
+   .vscode/
+   .idea/
+   *.swp
+   *.swo
 
-### **Strategy Options**
+   # OS
+   .DS_Store
+   Thumbs.db
 
-- **🚀 Breakout**: Momentum-based trend following
-- **🔄 Mean Reversion**: RSI-based contrarian strategy
-- **📊 Multi-Timeframe**: Combined 1h, 4h, 1d analysis
+   # Test
+   .pytest_cache/
+   .coverage
+   htmlcov/
+   ```
 
----
+5. **Commit All Files**:
+   - After uploading all files, scroll down
+   - Add commit message: "Initial commit - Arasaka Neural-Net Trading Matrix"
+   - Click "Commit changes"
 
-## ⚡ **SYSTEM REQUIREMENTS**
+### Using Git Command Line (Alternative)
 
-### **Minimum Specs**
-- **CPU**: Dual-core 2.0 GHz
-- **RAM**: 8 GB
-- **Storage**: 10 GB free space
-- **OS**: Windows 10/11, macOS 10.15+, Ubuntu 20.04+
-- **Python**: 3.9-3.11
-- **Network**: 10 Mbps broadband
-
-### **Recommended Specs**
-- **CPU**: Quad-core 3.0 GHz+
-- **RAM**: 16 GB
-- **Storage**: 50 GB SSD
-- **GPU**: NVIDIA GTX 1060+ (CUDA 11.8)
-- **Network**: 50 Mbps fiber
-
----
-
-## 🔧 **ADVANCED CONFIGURATION**
-
-### **📊 Historical Data Import**
+If you prefer using Git command line:
 
 ```bash
-# Download historical data (see docs/historical_data_guide.md)
-mkdir data/historical
+# Initialize git in your project directory
+git init
 
-# Import data
-python scripts/import_historical_data.py
+# Add all files
+git add .
+
+# Commit files
+git commit -m "Initial commit - Arasaka Neural-Net Trading Matrix"
+
+# Add remote repository
+git remote add origin https://github.com/YOUR_USERNAME/arasaka-trading-matrix.git
+
+# Push to GitHub
+git branch -M main
+git push -u origin main
 ```
 
-### **🎮 GPU Acceleration**
+## ⚙️ Configuration
+
+### 1. Exchange API Keys
+
+Get your API keys from Binance:
+1. Go to https://www.binance.com/en/my/settings/api-management
+2. Create new API key
+3. Enable "Enable Spot & Margin Trading"
+4. For testnet: Use https://testnet.binance.vision/
+
+### 2. Risk Profiles
+
+Edit `config/config.yaml` to adjust risk parameters:
+- **Conservative**: Low risk, no leverage
+- **Moderate**: Balanced risk/reward
+- **Aggressive**: High risk, high leverage
+
+### 3. Trading Pairs
+
+The bot automatically selects the best pairs, but you can set defaults in `config/config.yaml`.
+
+## 📊 Usage
+
+### GUI Interface
+
+1. **Login**: Default PIN is "2077" (change in first login)
+2. **Trading Tab**: Execute trades, monitor positions
+3. **Dashboard**: View analytics, run backtests
+4. **Settings**: Configure risk parameters
+5. **DeFi**: Set up liquidity mining
+
+### API Endpoints
+
+The bot also provides a REST API:
 
 ```bash
-# Install CUDA support
-pip install tensorflow-gpu
+# Check health
+curl http://localhost:8000/health
 
-# Verify GPU detection
-python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+# Get best trading pair
+curl http://localhost:8000/best_pair
+
+# Execute trade
+curl -X POST http://localhost:8000/trade \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"BTC/USDT","side":"buy","amount":0.001}'
 ```
 
----
-
-## 🛠️ **TROUBLESHOOTING**
-
-### **Common Issues**
-
-| Problem | Solution |
-|---------|----------|
-| ❌ API Connection Failed | Check API keys and network |
-| ❌ Database Lock Error | Restart application |
-| ❌ GPU Not Detected | Install CUDA 11.8 + cuDNN |
-| ❌ Import Error | Run `pip install -r requirements.txt` |
-
-### **📋 Debug Checklist**
-
-1. ✅ Verify API credentials in `.env`
-2. ✅ Check `trading.log` for error messages
-3. ✅ Ensure database is initialized
-4. ✅ Confirm Python version compatibility
-5. ✅ Test network connectivity
-
----
-
-## 📚 **DOCUMENTATION**
-
-- **📖 [Installation Guide](docs/installation.md)**
-- **⚙️ [Configuration Reference](docs/configuration.md)**
-- **📊 [Data Import Guide](docs/historical_data_guide.md)**
-- **🧠 [AI Model Training](docs/model_training.md)**
-- **🛡️ [Security Protocols](docs/security.md)**
-
----
-
-## 🚨 **DISCLAIMER**
-
-> **⚠️ WARNING: FINANCIAL RISK**
-> 
-> This software is for educational and research purposes. Cryptocurrency trading involves substantial risk of loss. Always:
-> - Start with testnet mode
-> - Never invest more than you can afford to lose
-> - Understand the risks before live trading
-> - Comply with local regulations
-
----
-
-## 📄 **LICENSE**
+## 🗂️ Project Structure
 
 ```
-MIT License - Feel free to jack this code and make it your own, Choom!
+arasaka-trading-matrix/
+├── api/                    # FastAPI backend
+│   └── app.py             # API endpoints
+├── config/                 # Configuration files
+│   ├── config.yaml        # Trading settings
+│   ├── settings.py        # Environment config
+│   └── tax_rates.csv      # Tax rates by country
+├── core/                   # Core functionality
+│   └── database.py        # Database manager
+├── emergency/              # Emergency systems
+│   └── kill_switch.py     # Emergency stop
+├── gui/                    # Tkinter GUI
+│   └── main.py            # Main GUI application
+├── market/                 # Market analysis
+│   ├── data_fetcher.py    # OHLCV data fetching
+│   └── pair_selector.py   # Pair selection engine
+├── ml/                     # Machine Learning
+│   ├── trainer.py         # XGBoost trainer
+│   └── rl_trainer.py      # DQN trainer
+├── scripts/                # Utility scripts
+│   ├── import_historical_data.py
+│   └── setup_database.py
+├── trading/                # Trading logic
+│   ├── trading_bot.py     # Main trading engine
+│   ├── risk_manager.py    # Risk management
+│   ├── strategies.py      # Trading strategies
+│   └── liquidity_mining.py # DeFi integration
+└── utils/                  # Utilities
+    ├── logger.py          # Logging system
+    ├── security_manager.py # Security protocols
+    └── tax_reporter.py    # Tax reporting
 ```
 
+## 📈 Trading Strategies
+
+### 1. Breakout Strategy
+- Identifies price breakouts above resistance or below support
+- Uses ATR for dynamic thresholds
+- Confirms with volume spikes
+
+### 2. Mean Reversion
+- Trades oversold/overbought conditions
+- Uses RSI and Bollinger Bands
+- Best in ranging markets
+
+### 3. Momentum Strategy
+- Follows strong trends
+- Uses MACD and moving average crossovers
+- Ideal for trending markets
+
+### 4. Scalping Strategy
+- Quick trades on small price movements
+- High frequency, small profits
+- Requires low fees
+
+### 5. Swing Trading
+- Captures larger market swings
+- Holds positions for days
+- Uses multiple timeframe analysis
+
+## 🛡️ Risk Management
+
+The bot implements multiple risk layers:
+
+1. **Position Sizing**: Kelly Criterion with portfolio-based adjustments
+2. **Leverage Control**: Dynamic leverage based on confidence and market regime
+3. **Stop Loss/Take Profit**: ATR-based dynamic levels
+4. **Portfolio Optimization**: Modern Portfolio Theory for weight allocation
+5. **Flash Crash Protection**: Automatic position closure on sudden drops
+6. **Daily Loss Limits**: Prevents excessive drawdowns
+
+## 📚 API Documentation
+
+### REST Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Check system status |
+| `/market/{symbol}` | GET | Get market data |
+| `/trade` | POST | Execute trade |
+| `/portfolio` | GET | Get portfolio info |
+| `/train` | POST | Train ML models |
+| `/predict/{symbol}` | GET | Get predictions |
+| `/best_pair` | GET | Get optimal pair |
+| `/backtest` | POST | Run backtest |
+| `/arbitrage` | GET | Find arbitrage |
+
+### WebSocket (Future)
+
+Real-time updates coming in v2.0
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **"No module named 'ccxt'"**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **"TA-Lib installation failed"**
+   - See installation instructions above
+
+3. **"Database locked"**
+   - Close other instances of the bot
+   - Delete `local_trading.db-journal` if exists
+
+4. **"API rate limit"**
+   - Reduce request frequency in settings
+   - Use multiple exchange accounts
+
+5. **"Insufficient funds"**
+   - Check wallet balance
+   - Reduce position size
+   - Ensure testnet is enabled for testing
+
+### Logs
+
+Check `logs/trading.log` for detailed error messages.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
+
+## 🔒 Security
+
+- **NEVER** share your `.env` file
+- **NEVER** commit API keys to Git
+- Use testnet for testing
+- Enable 2FA on exchange accounts
+- Regularly update dependencies
+- Monitor for unusual activity
+
+### Security Features
+
+- AES-256 encryption for sensitive data
+- PIN-based access control
+- Tamper detection
+- Emergency kill switch
+- Automatic system lockdown
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ⚠️ Disclaimer
+
+**IMPORTANT**: This bot is for educational purposes. Cryptocurrency trading carries significant risk. Never trade more than you can afford to lose. Past performance does not guarantee future results. Always do your own research.
+
+## 🙏 Acknowledgments
+
+- Inspired by the Cyberpunk 2077 universe
+- Built with cutting-edge AI technology
+- Community-driven development
+
 ---
 
-## 🤝 **CONTRIBUTING**
+**Ready to jack into the Matrix and stack some Eddies, Choom?**
 
-Want to enhance the Matrix? We welcome contributions from fellow Netrunners!
-
-1. **Fork** the repository
-2. **Create** a feature branch
-3. **Commit** your changes
-4. **Push** to the branch
-5. **Submit** a pull request
-
----
-
-## 📞 **SUPPORT**
-
-- **🐛 Bug Reports**: [GitHub Issues](../../issues)
-- **💡 Feature Requests**: [GitHub Discussions](../../discussions)
-- **📧 Contact**: `netrunner@arasaka-matrix.net`
-
----
-
-<div align="center">
-
-**🌆 Built with ❤️ in Night City 🌆**
-
-*Stack Eddies, Stay Jacked, Choom!*
-
-[![GitHub stars](https://img.shields.io/github/stars/your-username/arasaka-neural-net-matrix?style=social)](../../stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/your-username/arasaka-neural-net-matrix?style=social)](../../network/members)
-
-</div>
+*Remember: In Night City, you're either a predator or prey. Choose wisely.*
