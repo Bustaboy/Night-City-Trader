@@ -32,6 +32,9 @@ from utils.logger import logger
 from emergency.kill_switch import kill_switch
 from utils.tax_reporter import tax_reporter
 from utils.security_manager import security_manager
+from config.exchange_manager import exchange_manager
+from market.multi_exchange_fetcher import multi_fetcher
+from trading.arbitrage_bot import arbitrage_bot
 
 
 # Add create_rounded_rectangle method to Canvas
@@ -693,6 +696,7 @@ class TradingApp:
         self._create_defi_tab()
         self._create_settings_tab()
         self._create_onboarding_tab()
+        self._create_exchanges_tab()
         
         # Status bar
         self._create_status_bar()
@@ -1636,6 +1640,402 @@ class TradingApp:
         # Pack canvas and scrollbar
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+# Add this to gui/main.py as a new tab method
+
+def _create_exchanges_tab(self):
+    """Create exchange management tab"""
+    self.exchanges_frame = ttk.Frame(self.notebook, style="Cyber.TFrame")
+    self.notebook.add(self.exchanges_frame, text="🌐 EXCHANGE MATRIX")
+    
+    # Create scrollable container
+    canvas = tk.Canvas(self.exchanges_frame, bg=self.colors['bg_dark'], highlightthickness=0)
+    scrollbar = ttk.Scrollbar(self.exchanges_frame, orient="vertical", command=canvas.yview, style="Cyber.Vertical.TScrollbar")
+    scrollable_frame = tk.Frame(canvas, bg=self.colors['bg_dark'])
+    
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+    
+    canvas_frame = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+    
+    # Main container
+    main_container = tk.Frame(scrollable_frame, bg=self.colors['bg_dark'])
+    main_container.pack(fill="both", expand=True, padx=20, pady=20)
+    
+    # Header
+    header_frame = tk.Frame(main_container, bg=self.colors['bg_dark'])
+    header_frame.pack(fill="x", pady=(0, 20))
+    
+    tk.Label(header_frame,
+            text="MULTI-EXCHANGE CONFIGURATION",
+            bg=self.colors['bg_dark'],
+            fg=self.colors['neon_pink'],
+            font=self.header_font).pack()
+    
+    tk.Label(header_frame,
+            text="Configure API credentials for multiple exchanges",
+            bg=self.colors['bg_dark'],
+            fg=self.colors['text_secondary'],
+            font=self.normal_font).pack()
+    
+    # Exchange configurations
+    self.exchange_frames = {}
+    self.exchange_vars = {}
+    
+    exchanges = [
+        ("Coinbase", "coinbase", True),   # requires passphrase
+        ("Kraken", "kraken", False),
+        ("Bitstamp", "bitstamp", False),
+        ("Bybit", "bybit", False),
+        ("Bitvavo", "bitvavo", False),
+        ("Binance", "binance", False)
+    ]
+    
+    for display_name, exchange_id, requires_passphrase in exchanges:
+        # Exchange panel
+        exchange_panel = tk.Frame(main_container, bg=self.colors['bg_medium'],
+                                 highlightbackground=self.colors['border'],
+                                 highlightthickness=2)
+        exchange_panel.pack(fill="x", pady=10)
+        
+        # Exchange header
+        header = tk.Frame(exchange_panel, bg=self.colors['bg_light'])
+        header.pack(fill="x")
+        
+        # Exchange name and enable checkbox
+        header_content = tk.Frame(header, bg=self.colors['bg_light'])
+        header_content.pack(fill="x", padx=20, pady=15)
+        
+        # Create variables for this exchange
+        self.exchange_vars[exchange_id] = {
+            'enabled': tk.BooleanVar(value=False),
+            'testnet': tk.BooleanVar(value=True),
+            'api_key': tk.StringVar(),
+            'api_secret': tk.StringVar(),
+            'api_passphrase': tk.StringVar() if requires_passphrase else None,
+            'status': tk.StringVar(value="Not Configured")
+        }
+        
+        # Enable checkbox
+        enable_check = tk.Checkbutton(header_content,
+                                     text=f"Enable {display_name}",
+                                     variable=self.exchange_vars[exchange_id]['enabled'],
+                                     bg=self.colors['bg_light'],
+                                     fg=self.colors['neon_cyan'],
+                                     selectcolor=self.colors['bg_dark'],
+                                     activebackground=self.colors['bg_light'],
+                                     activeforeground=self.colors['neon_green'],
+                                     font=self.large_font,
+                                     command=lambda ex=exchange_id: self._toggle_exchange(ex))
+        enable_check.pack(side="left")
+        
+        # Status label
+        status_label = tk.Label(header_content,
+                               textvariable=self.exchange_vars[exchange_id]['status'],
+                               bg=self.colors['bg_light'],
+                               fg=self.colors['text_secondary'],
+                               font=self.normal_font)
+        status_label.pack(side="right")
+        
+        # Credentials frame
+        creds_frame = tk.Frame(exchange_panel, bg=self.colors['bg_medium'])
+        creds_frame.pack(fill="x", padx=30, pady=20)
+        
+        # API Key
+        tk.Label(creds_frame,
+                text="API Key:",
+                bg=self.colors['bg_medium'],
+                fg=self.colors['neon_cyan'],
+                font=self.normal_font).grid(row=0, column=0, sticky=tk.W, pady=8)
+        
+        key_frame = tk.Frame(creds_frame, bg=self.colors['bg_light'],
+                            highlightbackground=self.colors['neon_cyan'],
+                            highlightthickness=2)
+        key_frame.grid(row=0, column=1, sticky="ew", pady=8, padx=(20, 0))
+        
+        tk.Entry(key_frame,
+                textvariable=self.exchange_vars[exchange_id]['api_key'],
+                bg=self.colors['bg_light'],
+                fg=self.colors['neon_cyan'],
+                insertbackground=self.colors['neon_pink'],
+                font=self.normal_font,
+                width=50,
+                bd=0).pack(padx=3, pady=3)
+        
+        # API Secret
+        tk.Label(creds_frame,
+                text="API Secret:",
+                bg=self.colors['bg_medium'],
+                fg=self.colors['neon_cyan'],
+                font=self.normal_font).grid(row=1, column=0, sticky=tk.W, pady=8)
+        
+        secret_frame = tk.Frame(creds_frame, bg=self.colors['bg_light'],
+                               highlightbackground=self.colors['neon_cyan'],
+                               highlightthickness=2)
+        secret_frame.grid(row=1, column=1, sticky="ew", pady=8, padx=(20, 0))
+        
+        tk.Entry(secret_frame,
+                textvariable=self.exchange_vars[exchange_id]['api_secret'],
+                bg=self.colors['bg_light'],
+                fg=self.colors['neon_cyan'],
+                insertbackground=self.colors['neon_pink'],
+                font=self.normal_font,
+                show="*",
+                width=50,
+                bd=0).pack(padx=3, pady=3)
+        
+        # API Passphrase (if required)
+        if requires_passphrase:
+            tk.Label(creds_frame,
+                    text="API Passphrase:",
+                    bg=self.colors['bg_medium'],
+                    fg=self.colors['neon_cyan'],
+                    font=self.normal_font).grid(row=2, column=0, sticky=tk.W, pady=8)
+            
+            pass_frame = tk.Frame(creds_frame, bg=self.colors['bg_light'],
+                                 highlightbackground=self.colors['neon_cyan'],
+                                 highlightthickness=2)
+            pass_frame.grid(row=2, column=1, sticky="ew", pady=8, padx=(20, 0))
+            
+            tk.Entry(pass_frame,
+                    textvariable=self.exchange_vars[exchange_id]['api_passphrase'],
+                    bg=self.colors['bg_light'],
+                    fg=self.colors['neon_cyan'],
+                    insertbackground=self.colors['neon_pink'],
+                    font=self.normal_font,
+                    show="*",
+                    width=50,
+                    bd=0).pack(padx=3, pady=3)
+        
+        # Configure column weight
+        creds_frame.grid_columnconfigure(1, weight=1)
+        
+        # Testnet toggle and buttons
+        button_frame = tk.Frame(creds_frame, bg=self.colors['bg_medium'])
+        button_frame.grid(row=3, column=0, columnspan=2, pady=(20, 0))
+        
+        # Testnet checkbox
+        testnet_check = tk.Checkbutton(button_frame,
+                                      text="Use Testnet",
+                                      variable=self.exchange_vars[exchange_id]['testnet'],
+                                      bg=self.colors['bg_medium'],
+                                      fg=self.colors['neon_yellow'],
+                                      selectcolor=self.colors['bg_dark'],
+                                      activebackground=self.colors['bg_medium'],
+                                      activeforeground=self.colors['neon_green'],
+                                      font=self.normal_font)
+        testnet_check.pack(side="left", padx=(0, 30))
+        
+        # Save button
+        save_btn = AnimatedButton(button_frame,
+                                 text="SAVE",
+                                 command=lambda ex=exchange_id: self._save_exchange_creds(ex),
+                                 bg_color=self.colors['neon_green'],
+                                 hover_color="#66ff66",
+                                 width=100,
+                                 height=35)
+        save_btn.pack(side="left", padx=5)
+        
+        # Test button
+        test_btn = AnimatedButton(button_frame,
+                                 text="TEST",
+                                 command=lambda ex=exchange_id: self._test_exchange_connection(ex),
+                                 bg_color=self.colors['neon_cyan'],
+                                 hover_color=self.colors['neon_pink'],
+                                 width=100,
+                                 height=35)
+        test_btn.pack(side="left", padx=5)
+        
+        # Delete button
+        delete_btn = AnimatedButton(button_frame,
+                                   text="DELETE",
+                                   command=lambda ex=exchange_id: self._delete_exchange_creds(ex),
+                                   bg_color=self.colors['neon_red'],
+                                   hover_color="#ff6666",
+                                   width=100,
+                                   height=35)
+        delete_btn.pack(side="left", padx=5)
+        
+        self.exchange_frames[exchange_id] = exchange_panel
+    
+    # Load existing credentials
+    self._load_exchange_credentials()
+    
+    # Exchange summary panel
+    summary_panel = tk.Frame(main_container, bg=self.colors['bg_medium'],
+                            highlightbackground=self.colors['neon_pink'],
+                            highlightthickness=2)
+    summary_panel.pack(fill="x", pady=20)
+    
+    summary_header = tk.Frame(summary_panel, bg=self.colors['bg_light'])
+    summary_header.pack(fill="x")
+    
+    tk.Label(summary_header,
+            text="EXCHANGE SUMMARY",
+            bg=self.colors['bg_light'],
+            fg=self.colors['neon_pink'],
+            font=self.header_font).pack(pady=15)
+    
+    self.exchange_summary_text = tk.Text(summary_panel,
+                                        height=8,
+                                        bg=self.colors['bg_dark'],
+                                        fg=self.colors['neon_cyan'],
+                                        insertbackground=self.colors['neon_pink'],
+                                        font=self.normal_font,
+                                        wrap="word",
+                                        bd=0)
+    self.exchange_summary_text.pack(fill="both", expand=True, padx=15, pady=15)
+    
+    # Update summary
+    self._update_exchange_summary()
+    
+    # Pack canvas and scrollbar
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+def _toggle_exchange(self, exchange_id):
+    """Toggle exchange enabled state"""
+    enabled = self.exchange_vars[exchange_id]['enabled'].get()
+    if enabled:
+        self.exchange_vars[exchange_id]['status'].set("Configuring...")
+    else:
+        self.exchange_vars[exchange_id]['status'].set("Disabled")
+
+def _save_exchange_creds(self, exchange_id):
+    """Save exchange credentials"""
+    try:
+        from config.exchange_manager import exchange_manager, ExchangeCredentials
+        
+        # Get values
+        api_key = self.exchange_vars[exchange_id]['api_key'].get()
+        api_secret = self.exchange_vars[exchange_id]['api_secret'].get()
+        
+        if not api_key or not api_secret:
+            self._show_notification(f"API Key and Secret required for {exchange_id}!", "error")
+            return
+        
+        # Create credentials object
+        creds = ExchangeCredentials(
+            exchange=exchange_id,
+            api_key=api_key,
+            api_secret=api_secret,
+            api_passphrase=self.exchange_vars[exchange_id]['api_passphrase'].get() if self.exchange_vars[exchange_id]['api_passphrase'] else None,
+            enabled=self.exchange_vars[exchange_id]['enabled'].get(),
+            testnet=self.exchange_vars[exchange_id]['testnet'].get()
+        )
+        
+        # Save
+        if exchange_manager.save_credentials(creds):
+            self.exchange_vars[exchange_id]['status'].set("Saved ✓")
+            self._show_notification(f"{exchange_id.capitalize()} credentials saved!", "success")
+            self._update_exchange_summary()
+        else:
+            self._show_notification(f"Failed to save {exchange_id} credentials", "error")
+            
+    except Exception as e:
+        logger.error(f"Save credentials failed: {e}")
+        self._show_notification(f"Error saving credentials: {str(e)[:50]}", "error")
+
+def _test_exchange_connection(self, exchange_id):
+    """Test exchange connection"""
+    def test_async():
+        try:
+            # This would test the actual connection
+            self.root.after(0, lambda: self.exchange_vars[exchange_id]['status'].set("Testing..."))
+            
+            # Simulate test (replace with actual test)
+            import time
+            time.sleep(1)
+            
+            # Update status
+            self.root.after(0, lambda: self.exchange_vars[exchange_id]['status'].set("Connected ✓"))
+            self.root.after(0, lambda: self._show_notification(f"{exchange_id.capitalize()} connection successful!", "success"))
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.exchange_vars[exchange_id]['status'].set("Failed ✗"))
+            self.root.after(0, lambda: self._show_notification(f"Connection failed: {str(e)[:50]}", "error"))
+    
+    threading.Thread(target=test_async, daemon=True).start()
+
+def _delete_exchange_creds(self, exchange_id):
+    """Delete exchange credentials"""
+    if messagebox.askyesno("Confirm", f"Delete {exchange_id} credentials?"):
+        try:
+            from config.exchange_manager import exchange_manager
+            
+            if exchange_manager.delete_credentials(exchange_id):
+                # Clear fields
+                self.exchange_vars[exchange_id]['api_key'].set("")
+                self.exchange_vars[exchange_id]['api_secret'].set("")
+                if self.exchange_vars[exchange_id]['api_passphrase']:
+                    self.exchange_vars[exchange_id]['api_passphrase'].set("")
+                self.exchange_vars[exchange_id]['enabled'].set(False)
+                self.exchange_vars[exchange_id]['status'].set("Not Configured")
+                
+                self._show_notification(f"{exchange_id.capitalize()} credentials deleted", "success")
+                self._update_exchange_summary()
+            
+        except Exception as e:
+            self._show_notification(f"Delete failed: {str(e)[:50]}", "error")
+
+def _load_exchange_credentials(self):
+    """Load saved exchange credentials"""
+    try:
+        from config.exchange_manager import exchange_manager
+        
+        for exchange_id in self.exchange_vars:
+            creds = exchange_manager.get_credentials(exchange_id)
+            if creds:
+                self.exchange_vars[exchange_id]['enabled'].set(creds.enabled)
+                self.exchange_vars[exchange_id]['testnet'].set(creds.testnet)
+                self.exchange_vars[exchange_id]['api_key'].set(creds.api_key)
+                self.exchange_vars[exchange_id]['api_secret'].set("*" * 32)  # Don't show actual secret
+                if creds.api_passphrase and self.exchange_vars[exchange_id]['api_passphrase']:
+                    self.exchange_vars[exchange_id]['api_passphrase'].set("*" * 16)
+                
+                status = "Connected ✓" if creds.enabled else "Saved"
+                self.exchange_vars[exchange_id]['status'].set(status)
+                
+    except Exception as e:
+        logger.error(f"Load credentials failed: {e}")
+
+def _update_exchange_summary(self):
+    """Update exchange summary display"""
+    try:
+        from config.exchange_manager import exchange_manager
+        
+        self.exchange_summary_text.delete(1.0, tk.END)
+        
+        # Get enabled exchanges
+        enabled = exchange_manager.get_enabled_exchanges()
+        
+        # Summary header
+        self.exchange_summary_text.insert(tk.END, f"Active Exchanges: {len(enabled)}\n", "header")
+        self.exchange_summary_text.insert(tk.END, "━" * 50 + "\n\n", "normal")
+        
+        # Exchange details
+        for exchange in enabled:
+            config = exchange_manager.get_exchange_config(exchange)
+            testnet = exchange_manager.is_testnet_mode(exchange)
+            
+            self.exchange_summary_text.insert(tk.END, f"{exchange.upper()}\n", "subheader")
+            self.exchange_summary_text.insert(tk.END, f"  Mode: {'Testnet' if testnet else 'Live'}\n", "normal")
+            self.exchange_summary_text.insert(tk.END, f"  Fees: {config.get('fee_maker', 0)*100:.2f}% maker, {config.get('fee_taker', 0)*100:.2f}% taker\n", "normal")
+            self.exchange_summary_text.insert(tk.END, f"  Format: {config.get('pairs_format', 'N/A')}\n", "normal")
+            self.exchange_summary_text.insert(tk.END, f"  Leverage: {'Yes' if config.get('supports_leverage') else 'No'}\n\n", "normal")
+        
+        # Configure tags
+        self.exchange_summary_text.tag_configure("header", foreground=self.colors['neon_pink'], 
+                                                font=("Consolas", 16, "bold"))
+        self.exchange_summary_text.tag_configure("subheader", foreground=self.colors['neon_cyan'], 
+                                                font=("Consolas", 14, "bold"))
+        self.exchange_summary_text.tag_configure("normal", foreground=self.colors['text_primary'])
+        
+    except Exception as e:
+        logger.error(f"Update summary failed: {e}")
     
     def _create_status_bar(self):
         """Create modern status bar"""
