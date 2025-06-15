@@ -1,6 +1,6 @@
 # 🤖 Arasaka Neural-Net Trading Matrix
 
-[Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
+![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
 ![Version](https://img.shields.io/badge/version-2.0.7.7-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)
