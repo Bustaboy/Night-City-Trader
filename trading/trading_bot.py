@@ -24,17 +24,19 @@ class TradingBot:
         self.fetcher = None
         self._initialized = False
         
-    async def initialize(self):
-        """Lazy initialization to avoid circular imports"""
-        if self._initialized:
-            return
+async def initialize(self):
+    """Updated initialization for multi-exchange"""
+    if self._initialized:
+        return
             
         from ml.trainer import trainer
         from ml.rl_trainer import rl_trainer
         from trading.strategies import strategies
         from trading.risk_manager import risk_manager
         from market.data_fetcher import fetcher
-        
+        from market.multi_exchange_fetcher import multi_fetcher
+    
+        self.multi_fetcher = multi_fetcher
         self.trainer = trainer
         self.rl_trainer = rl_trainer
         self.strategies = strategies
@@ -42,11 +44,11 @@ class TradingBot:
         self.fetcher = fetcher
         
         # Initialize exchange
-        self.exchange = ccxt.binance({
-            "apiKey": settings.BINANCE_API_KEY,
-            "secret": settings.BINANCE_API_SECRET,
-            "enableRateLimit": True
-        })
+        enabled_exchanges = exchange_manager.get_enabled_exchanges()
+    if enabled_exchanges:
+        self.primary_exchange = enabled_exchanges[0]
+    else:
+        self.primary_exchange = "coinbase"  # Default
         
         if settings.TESTNET:
             self.exchange.set_sandbox_mode(True)
@@ -54,8 +56,12 @@ class TradingBot:
         self._initialized = True
 
     async def execute_trade(self, symbol, side, amount, leverage=1.0):
-        """Execute a trade with full Neural-Net validation"""
-        await self.initialize()
+    """Execute trade on best exchange"""
+    await self.initialize()
+    
+    # Find best exchange for this pair
+    best_exchange = await self.multi_fetcher.get_best_exchange_for_pair(symbol)
+    if best_exchange:
         
         try:
             # Parse symbol if it has exchange prefix
@@ -323,6 +329,8 @@ class TradingBot:
         except Exception as e:
             logger.error(f"Idle conversion flatlined: {e}")
 
+    
+    
     async def backtest_strategy(self, symbol, timeframe, start_date, end_date, strategy):
         """Backtest trading strategy on historical data"""
         try:
