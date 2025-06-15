@@ -503,6 +503,38 @@ async def get_onchain_metrics(symbol: str):
         logger.error(f"On-chain analysis failed: {e}")
         return {"symbol": symbol, "metrics": {}, "message": "Analysis unavailable"}
 
+@app.get("/exchanges")
+async def get_exchanges():
+    """Get configured exchanges"""
+    return {
+        "exchanges": exchange_manager.get_enabled_exchanges(),
+        "count": len(exchange_manager.get_enabled_exchanges())
+    }
+
+@app.get("/arbitrage/opportunities")
+async def get_arbitrage_opportunities():
+    """Get current arbitrage opportunities"""
+    opportunities = await arbitrage_bot.scan_opportunities()
+    return {
+        "opportunities": opportunities[:20],  # Top 20
+        "count": len(opportunities)
+    }
+
+@app.post("/arbitrage/execute")
+async def execute_arbitrage(opportunity: dict):
+    """Execute an arbitrage opportunity"""
+    success, message = await arbitrage_bot.execute_opportunity(opportunity)
+    return {
+        "success": success,
+        "message": message
+    }
+
+@app.get("/arbitrage/stats")
+async def get_arbitrage_stats():
+    """Get arbitrage statistics"""
+    stats = await arbitrage_bot.get_statistics()
+    return stats
+
 # Run the application
 if __name__ == "__main__":
     import uvicorn
