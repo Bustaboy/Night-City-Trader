@@ -1,8 +1,10 @@
 # 🤖 Arasaka Neural-Net Trading Matrix
 
-![Cyberpunk Trading Bot](https://img.shields.io/badge/Status-Active-00ff00?style=for-the-badge&logo=bitcoin&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-ff00ff?style=for-the-badge)
+![Cyberpunk Trading Bot]![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.7.7-green.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)
+![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)
 
 > **"In Night City, you're either stacking Eddies or flatlining. This Neural-Net ensures you're doing the former."**
 
