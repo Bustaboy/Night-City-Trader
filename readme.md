@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
 ![Version](https://img.shields.io/badge/version-2.0.7.7-green.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/License-Non--Commercial%20MIT-blue.svg)
 ![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)
 ![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)
 
